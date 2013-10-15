@@ -11,7 +11,7 @@ typedef struct
 
 
 #define BLOCK_SIZE 512
-#define MBR_OFFSET 436
+#define MBR_OFFSET 446
 
 typedef struct
 {
@@ -29,7 +29,9 @@ typedef struct
 
 
 image_t *load_image(char *filename);
+void free_image(image_t *image);
 
 MBR_entry_t *load_mbr(image_t *image);
+void write_mbr(image_t *image, MBR_entry_t *MBR);
 
 
