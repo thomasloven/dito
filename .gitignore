@@ -2,3 +2,4 @@ build/
 tests/*
 !tests/*.[ch]
 !tests/*.sh
+*.img

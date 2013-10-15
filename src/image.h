@@ -7,31 +7,24 @@ typedef struct
 {
   char *filename;
   FILE *file;
+  size_t cylinders;
+  size_t heads;
+  size_t sectors;
 } image_t;
 
 
 #define BLOCK_SIZE 512
-#define MBR_OFFSET 446
 
 typedef struct
 {
-  uint8_t boot_indicator;
-  uint8_t start_head;
-  uint8_t start_sector;
-  uint8_t start_cylinder;
-  uint8_t system_id;
-  uint8_t end_head;
-  uint8_t end_sector;
-  uint8_t end_cylinder;
-  uint32_t start_LBA;
-  uint32_t num_sectors;
-}__attribute__((packed)) MBR_entry_t;
+  int C;
+  int H;
+  int S;
+} CHS_t;
 
-
+image_t *new_image(char *filename, size_t size);
 image_t *load_image(char *filename);
 void free_image(image_t *image);
 
-MBR_entry_t *load_mbr(image_t *image);
-void write_mbr(image_t *image, MBR_entry_t *MBR);
-
-
+CHS_t CHS_from_LBA(image_t *image, int lba);
+size_t LBA_from_CHS(image_t *image, CHS_t chs);

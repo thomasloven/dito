@@ -4,35 +4,41 @@
 
 char *test_load_image()
 {
-  image_t *im = load_image("testimg.img");
+  image_t *im = load_image("tests/testimg.img");
 
   mu_assert(im != NULL, "Did not return image");
   mu_assert(im->file != NULL, "Did not open a file");
 
+  mu_assert(im->cylinders == 0x147, "Test image has wrong number of cylinders");
+  mu_assert(im->heads == 0x2, "Test image has wrong number of heads");
+  mu_assert(im->sectors == 0x3f, "Test image has wrong number of sectors");
+
   free_image(im);
 
   return NULL;
 }
 
-char *test_load_mbr()
+char *test_new_image()
 {
-  image_t *im = load_image("testimg.img");
-  MBR_entry_t *MBR = load_mbr(im);
+  image_t *im = new_image("tests/testimg2.img", 21030912);
 
-  mu_assert(MBR != NULL, "Did not return MBR");
+  mu_assert(im != NULL, "Did not return image");
+  mu_assert(im->file != NULL, "Did not open a file");
 
-  mu_assert(MBR[0].boot_indicator == 0x80, "First partition not bootable in test image");
-  mu_assert(MBR[0].system_id == 0x83, "Wrong system indicator in test image");
+  mu_assert(im->cylinders == 0x147, "New image has wrong number of cylinders");
+  mu_assert(im->heads == 0x2, "New image has wrong number of heads");
+  mu_assert(im->sectors == 0x3f, "New image has wrong number of sectors");
 
-  free(MBR);
   free_image(im);
+
   return NULL;
 }
+
 
 char *all_tests() {
   mu_suite_start();
   mu_run_test(test_load_image);
-  mu_run_test(test_load_mbr);
+  mu_run_test(test_new_image);
   return NULL;
 }
 
