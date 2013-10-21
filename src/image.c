@@ -156,6 +156,20 @@ void image_setmbr(image_t *im, MBR_entry_t *mbr, int num)
   memcpy(&im->mbr[num], mbr, sizeof(MBR_entry_t));
 }
 
+size_t image_get_partition_start(image_t *im, int num)
+{
+  if(num < 0 || num > 3)
+    return 0;
+  return im->mbr[num].start_LBA;
+}
+
+size_t image_get_partition_length(image_t *im, int num)
+{
+  if(num < 0 || num > 3)
+    return 0;
+  return im->mbr[num].num_sectors;
+}
+
 size_t image_getsize(image_t *im)
 {
   if(!im)

@@ -47,6 +47,8 @@ void image_close(image_t *im);
 MBR_entry_t *image_getmbr(image_t *im, int num);
 void image_setmbr(image_t *im, MBR_entry_t *mbr, int num);
 size_t image_getsize(image_t *im);
+size_t image_get_partition_start(image_t *im, int num);
+size_t image_get_partition_length(image_t *im, int num);
 
 int image_check(image_t *im);
 int image_readblocks(image_t *im, void *buffer, size_t start, size_t len);

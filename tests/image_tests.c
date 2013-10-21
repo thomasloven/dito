@@ -1,8 +1,9 @@
 #include "minunit.h"
 #include <image.h>
 #include <errno.h>
+#include <unistd.h>
 
-char *test_load_image()
+char *test_image_load()
 {
   image_t *im = image_load("tests/testimg.img");
 
@@ -18,7 +19,7 @@ char *test_load_image()
   return NULL;
 }
 
-char *test_new_image()
+char *test_image_new()
 {
   size_t sizes[] = {10000000, 5000000, 0, 5000000};
   image_t *im = image_new("tests/testimg2.img", sizes, 0);
@@ -33,14 +34,46 @@ char *test_new_image()
 
   image_close(im);
 
+  im = image_load("tests/testimg2.img");
+  mu_assert(!image_check(im), "Second image check failed");
+
+  image_close(im);
+  unlink("tests/testimg2.img");
+
+  return NULL;
+}
+
+char *test_image_readwrite()
+{
+  char buffer[2048];
+  char buffer2[2048];
+  FILE *fp = fopen("/dev/urandom",  "r");
+  fread(buffer, 2048, 1, fp);
+  fclose(fp);
+
+  size_t sizes[] = {10000, 0, 0, 0};
+  image_t *im = image_new("tests/testimg2.img", sizes, 0);
+  image_writeblocks(im, buffer, 5, 2);
+
+  image_close(im);
+  image_load("tests/testimg2.img");
+  image_readblocks(im, buffer2, 5, 1);
+
+  mu_assert(!memcmp(buffer, buffer2, 512), "Read did not return same as write");
+  mu_assert(memcmp(buffer, buffer2, 1024), "Read too much");
+
+  image_readblocks(im, buffer2, 5, 4);
+  mu_assert(memcmp(buffer, buffer2, 2048), "Wrote too much");
+
   return NULL;
 }
 
 
 char *all_tests() {
   mu_suite_start();
-  mu_run_test(test_load_image);
-  mu_run_test(test_new_image);
+  mu_run_test(test_image_load);
+  mu_run_test(test_image_new);
+  mu_run_test(test_image_readwrite);
   return NULL;
 }
 
