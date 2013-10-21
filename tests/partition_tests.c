@@ -1,6 +1,7 @@
 #include "minunit.h"
 #include <partition.h>
 #include <errno.h>
+#include <unistd.h>
 
 char *test_partition_read()
 {
