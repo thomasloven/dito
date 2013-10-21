@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <unistd.h>
 
 CHS_t max_CHS_from_size(size_t size)
 {
@@ -87,6 +89,8 @@ image_t *image_new(char *filename, size_t sizes[4], int boot)
 
   image->mbr[boot].boot_indicator = 0x80;
   image->mbr_dirty = 1;
+
+  ftruncate(fileno(image->file), size);
 
   return image;
 
