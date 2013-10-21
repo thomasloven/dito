@@ -62,7 +62,7 @@ image_t *image_new(char *filename, size_t sizes[4], int boot)
   image->heads = chs.H;
   image->sectors = chs.S;
 
-  size_t i = 0, pos=image->sectors;
+  size_t i = 0, pos=image->sectors*BLOCK_SIZE;
   for(i = 0; i < 4; i++)
   {
     size_t round_size = (sizes[i]+(sizes[i]%BLOCK_SIZE!=0)*BLOCK_SIZE);

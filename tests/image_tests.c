@@ -64,6 +64,9 @@ char *test_image_readwrite()
 
   image_readblocks(im, buffer2, 5, 4);
   mu_assert(memcmp(buffer, buffer2, 2048), "Wrote too much");
+  
+  image_close(im);
+  unlink("tests/testimg2.img");
 
   return NULL;
 }
