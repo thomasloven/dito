@@ -14,8 +14,8 @@ typedef struct
 } partition_t;
 
 
-partition_t *partiton_load(image_t *image, int partition);
+partition_t *partition_open(image_t *im, int partition);
 
 void partition_close(partition_t *p);
-void partition_readblocks(partition_t *p, void *buffer, size_t start, size_t len);
-void partition_writeblocks(partition_t *p, void *buffer, size_t start, size_t len);
+size_t partition_readblocks(partition_t *p, void *buffer, size_t start, size_t len);
+size_t partition_writeblocks(partition_t *p, void *buffer, size_t start, size_t len);
