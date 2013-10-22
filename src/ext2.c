@@ -22,6 +22,11 @@ fs_driver_t ext2_driver = {
 
 int ext2_readblocks(struct fs_st *fs, void *buffer, size_t start, size_t len)
 {
+  if(!fs)
+    return 0;
+  if(!buffer)
+    return 0;
+
   size_t db_start = start*ext2_blocksize(fs)/BLOCK_SIZE;
   size_t db_len = len*ext2_blocksize(fs)/BLOCK_SIZE;
 
@@ -30,6 +35,11 @@ int ext2_readblocks(struct fs_st *fs, void *buffer, size_t start, size_t len)
 
 int ext2_writeblocks(struct fs_st *fs, void *buffer, size_t start, size_t len)
 {
+  if(!fs)
+    return 0;
+  if(!buffer)
+    return 0;
+
   size_t db_start = start*ext2_blocksize(fs)/BLOCK_SIZE;
   size_t db_len = len*ext2_blocksize(fs)/BLOCK_SIZE;
 
@@ -38,21 +48,50 @@ int ext2_writeblocks(struct fs_st *fs, void *buffer, size_t start, size_t len)
 
 int ext2_read_groupblocks(struct fs_st *fs, int group, void *buffer, size_t start, size_t len)
 {
+  if(!fs)
+    return 0;
+  if(!buffer)
+    return 0;
+  if(group > ext2_numgroups(fs))
+    return 0;
   ext2_data_t *data = fs->data;
+  if(start > data->superblock->blocks_per_group)
+    return 0;
+  if(start+len > data->superblock->blocks_per_group)
+    return 0;
+
   size_t offset = group*data->superblock->blocks_per_group;
   return ext2_readblocks(fs, buffer, start+offset, len);
 }
 
 int ext2_write_groupblocks(struct fs_st *fs, int group, void *buffer, size_t start, size_t len)
 {
+  if(!fs)
+    return 0;
+  if(!buffer)
+    return 0;
+  if(group > ext2_numgroups(fs))
+    return 0;
   ext2_data_t *data = fs->data;
+  if(start > data->superblock->blocks_per_group)
+    return 0;
+  if(start+len > data->superblock->blocks_per_group)
+    return 0;
+
   size_t offset = group*data->superblock->blocks_per_group;
   return ext2_writeblocks(fs, buffer, start+offset, len);
 }
 
 int ext2_read_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
 {
+  if(!fs)
+    return 0;
+  if(!buffer)
+    return 0;
   ext2_data_t *data = fs->data;
+  if(num > data->superblock->num_inodes)
+    return 0;
+
   int group = (num-1) / data->superblock->inodes_per_group;
   int offset =(num-1) % data->superblock->inodes_per_group;
 
@@ -61,17 +100,25 @@ int ext2_read_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
   inoblock += data->groups[group].inode_table;
 
   char *buff = malloc(2*ext2_blocksize(fs));
-  ext2_read_groupblocks(fs, group, buff, inoblock, 2);
+  if(!ext2_read_groupblocks(fs, group, buff, inoblock, 2))
+    return 0;
   memcpy(buffer, (void *)((size_t)buff + inooffset), sizeof(ext2_inode_t));
 
   free(buff);
 
-  return 0;
+  return 1;
 }
 
 int ext2_write_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
 {
+  if(!fs)
+    return 0;
+  if(!buffer)
+    return 0;
   ext2_data_t *data = fs->data;
+  if(num > data->superblock->num_inodes)
+    return 0;
+
   int group = num / data->superblock->inodes_per_group;
   int offset = num % data->superblock->inodes_per_group;
 
@@ -79,17 +126,23 @@ int ext2_write_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
   size_t inooffset = (offset*sizeof(ext2_inode_t))%ext2_blocksize(fs);
 
   char *buff = malloc(2*ext2_blocksize(fs));
-  ext2_read_groupblocks(fs, group, buff, inoblock, 2);
+  if(!ext2_read_groupblocks(fs, group, buff, inoblock, 2))
+    return 0;
   memcpy((void *)((size_t)buff + inooffset), buffer, sizeof(ext2_inode_t));
   ext2_write_groupblocks(fs, group, buff, inoblock, 2);
 
   free(buff);
 
-  return 0;
+  return 1;
 }
 
 size_t ext2_read_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_list, size_t bl_index, size_t length)
 {
+  if(!fs)
+    return -1;
+  if(level > 3)
+    return -1;
+
   if(level == 0)
   {
     block_list[bl_index] = block;
@@ -98,10 +151,13 @@ size_t ext2_read_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_l
     size_t i = 0;
     size_t read = 0;
     uint32_t *blocks = malloc(ext2_blocksize(fs));
-    ext2_readblocks(fs, blocks, block, 1);
+    if(!ext2_readblocks(fs, blocks, block, 1))
+      return -1;
     while(i < ext2_blocksize(fs)/sizeof(uint32_t) && bl_index < length)
     {
       size_t read2 = ext2_read_indirect(fs, blocks[i], level-1, block_list, bl_index, length);
+      if(read2 == -1)
+        return -1;
       bl_index += read2;
       read += read2;
       i++;
@@ -113,6 +169,11 @@ size_t ext2_read_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_l
 
 uint32_t *ext2_get_blocks(fs_t *fs, ext2_inode_t *node)
 {
+  if(!fs)
+    return 0;
+  if(!node)
+    return 0;
+
   int num_blocks = node->size_low/ext2_blocksize(fs) + (node->size_low%ext2_blocksize(fs) != 0);
 
   uint32_t *block_list = calloc(num_blocks + 1, sizeof(uint32_t));
@@ -133,11 +194,19 @@ uint32_t *ext2_get_blocks(fs_t *fs, ext2_inode_t *node)
 
 size_t ext2_read_data(fs_t *fs, ext2_inode_t *node, void *buffer, size_t length)
 {
+  if(!fs)
+    return 0;
+  if(!node)
+    return 0;
+  if(!buffer)
+    return 0;
+
   if(length > node->size_low)
     length = node->size_low;
   uint32_t *block_list = ext2_get_blocks(fs, node);
 
   int i = 0;
+  size_t readcount = 0;
   while(block_list[i])
   {
     size_t readlength = length;
@@ -146,11 +215,12 @@ size_t ext2_read_data(fs_t *fs, ext2_inode_t *node, void *buffer, size_t length)
     ext2_readblocks(fs, buffer, block_list[i], 1);
 
     length -= readlength;
+    readcount += readlength;
     buffer = (void *)((size_t)buffer + readlength);
     i++;
   }
   free(block_list);
-  return length;
+  return readcount;
 }
 
 
@@ -171,11 +241,18 @@ INODE ext2_touch(struct fs_st *fs, fs_ftype_t type)
 
 dirent_t *ext2_readdir(struct fs_st *fs, INODE dir, unsigned int num)
 {
+  if(!fs)
+    return 0;
+  if(dir < 2)
+    return 0;
+
   ext2_inode_t *dir_ino = malloc(sizeof(ext2_inode_t));
-  ext2_read_inode(fs, dir_ino, dir);
+  if(!ext2_read_inode(fs, dir_ino, dir))
+    return 0;
 
   void *data = malloc(dir_ino->size_low);
-  ext2_read_data(fs, dir_ino, data, dir_ino->size_low);
+  if(!ext2_read_data(fs, dir_ino, data, dir_ino->size_low))
+    return 0;
 
   ext2_dirinfo_t *di = data;
   while(num && (size_t)di < ((size_t)data + dir_ino->size_low))
@@ -183,6 +260,8 @@ dirent_t *ext2_readdir(struct fs_st *fs, INODE dir, unsigned int num)
     di = (ext2_dirinfo_t *)((size_t)di + di->record_length);
     num--;
   }
+  if((size_t)di >= ((size_t)data + dir_ino->size_low))
+    return 0;
 
   dirent_t *de = malloc(sizeof(dirent_t));
   de->ino = di->inode;
@@ -220,8 +299,7 @@ void *ext2_hook_load(struct fs_st *fs)
   data->superblock_dirty = 0;
 
   // Calculate number of groups
-  data->num_groups = data->superblock->num_inodes / data->superblock->inodes_per_group;
-  if(data->superblock->num_inodes % data->superblock->inodes_per_group) data->num_groups++;
+  data->num_groups = ext2_numgroups(fs);
 
   // Calculate size of group descriptors
   size_t groups_size = data->num_groups*sizeof(ext2_groupd_t);

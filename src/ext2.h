@@ -139,6 +139,8 @@ typedef struct
 } ext2_data_t;
 
 #define ext2_blocksize(fs) (1024 << ((ext2_data_t *)(fs)->data)->superblock->block_size)
+#define ext2_numgroups(fs) ((((ext2_data_t *)(fs)->data)->superblock->num_inodes / ((ext2_data_t *)(fs)->data)->superblock->inodes_per_group) + (((ext2_data_t *)(fs)->data)->superblock->num_inodes % ((ext2_data_t *)(fs)->data)->superblock->inodes_per_group != 0))
+  
 
 
 int ext2_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset);
