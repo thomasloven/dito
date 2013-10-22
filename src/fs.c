@@ -1,5 +1,6 @@
 #include <fs.h>
 #include <stdlib.h>
+#include <string.h>
 
 fs_driver_t ext2_driver; // temp
 
@@ -137,6 +138,50 @@ fstat_t *fs_fstat(struct fs_st *fs, INODE ino)
 }
 
 
-INODE fs_finddir(fs_t *fs, INODE dir, const char *name);
-INODE fs_find(fs_t *fs, const char *path);
+INODE fs_finddir(fs_t *fs, INODE dir, const char *name)
+{
+  if(!fs)
+    return 0;
+  if(!dir)
+    return 0;
+  if(!fs->driver->readdir)
+    return 0;
 
+  int num = 0;
+  dirent_t *de;
+  while(1)
+  {
+    de = fs->driver->readdir(fs, dir, num);
+    if(!de)
+      return 0;
+    if(!strcmp(name, de->name))
+      break;
+    free(de->name);
+    free(de);
+    num++;
+  }
+  INODE ret = de->ino;
+  free(de->name);
+  free(de);
+  return ret;
+}
+
+INODE fs_find(fs_t *fs, const char *path)
+{
+  if(!fs)
+    return 0;
+
+  INODE current = fs->driver->root;
+
+  char *name, *brk, *npath = strdup(path);
+  for(name = strtok_r(npath, "/", &brk); \
+        name; \
+        name = strtok_r(0, "/", &brk))
+  {
+    current = fs_finddir(fs, current, name);
+    if(!current)
+      break;
+  }
+  free(npath);
+  return current;
+}
