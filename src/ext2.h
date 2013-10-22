@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <fs.h>
 
-typedef struct
+typedef struct // Superblock
 {
   uint32_t num_inodes;
   uint32_t num_blocks;
@@ -52,7 +52,7 @@ typedef struct
   uint32_t orphan_inodes_head;
 }__attribute__((packed)) ext2_superblock_t;
 
-typedef struct
+typedef struct // group
 {
   uint32_t block_bitmap;
   uint32_t inode_bitmap;
@@ -63,7 +63,7 @@ typedef struct
   uint16_t unused[7];
 }__attribute__((packed)) ext2_groupd_t;
 
-typedef struct
+typedef struct // inode
 {
   uint16_t type;
   uint16_t uid;
@@ -106,7 +106,7 @@ typedef struct
 #define EXT2_UR 00400
 
 
-typedef struct
+typedef struct // dirinfo
 {
   uint32_t inode;
   uint16_t record_length;
@@ -123,6 +123,20 @@ typedef struct
 #define EXT2_DIR_FIFO 5
 #define EXT2_DIR_SOCKET 6
 #define EXT2_DIR_SYMLINK 7
+
+
+typedef struct 
+{
+  ext2_superblock_t *superblock;
+  int superblock_dirty;
+  ext2_groupd_t *groups;
+  int num_groups;
+  int groups_dirty;
+  
+  ext2_inode_t ino_buffer;
+} ext2_data_t;
+
+#define ext2_blocksize(fs) (1024 << ((ext2_data_t *)(fs)->data)->superblock->block_size)
 
 
 int ext2_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset);

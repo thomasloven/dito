@@ -51,8 +51,8 @@ fs_t *fs_create(partition_t *p, fs_type_t type)
   fs->data = 0;
   fs->driver = supported[type];
 
-  if(fs->driver->hook_load)
-    fs->driver->hook_load(fs);
+  if(fs->driver->hook_create)
+    fs->driver->hook_create(fs);
 
   return fs;
 }
