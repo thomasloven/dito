@@ -1,8 +1,8 @@
 #include <fs.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ext2.h>
 
-fs_driver_t ext2_driver; // temp
 
 fs_driver_t *supported[] = {
   0, // unknown
