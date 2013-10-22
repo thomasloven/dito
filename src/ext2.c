@@ -52,7 +52,7 @@ int ext2_read_groupblocks(struct fs_st *fs, int group, void *buffer, size_t star
     return 0;
   if(!buffer)
     return 0;
-  if(group > ext2_numgroups(fs))
+  if(group > (int)ext2_numgroups(fs))
     return 0;
   ext2_data_t *data = fs->data;
   if(start > data->superblock->blocks_per_group)
@@ -70,7 +70,7 @@ int ext2_write_groupblocks(struct fs_st *fs, int group, void *buffer, size_t sta
     return 0;
   if(!buffer)
     return 0;
-  if(group > ext2_numgroups(fs))
+  if(group > (int)ext2_numgroups(fs))
     return 0;
   ext2_data_t *data = fs->data;
   if(start > data->superblock->blocks_per_group)
@@ -89,7 +89,7 @@ int ext2_read_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
   if(!buffer)
     return 0;
   ext2_data_t *data = fs->data;
-  if(num > data->superblock->num_inodes)
+  if(num > (int)data->superblock->num_inodes)
     return 0;
 
   int group = (num-1) / data->superblock->inodes_per_group;
@@ -116,7 +116,7 @@ int ext2_write_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
   if(!buffer)
     return 0;
   ext2_data_t *data = fs->data;
-  if(num > data->superblock->num_inodes)
+  if(num > (int)data->superblock->num_inodes)
     return 0;
 
   int group = num / data->superblock->inodes_per_group;
@@ -139,9 +139,9 @@ int ext2_write_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
 size_t ext2_read_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_list, size_t bl_index, size_t length)
 {
   if(!fs)
-    return -1;
+    return 0;
   if(level > 3)
-    return -1;
+    return 0;
 
   if(level == 0)
   {
@@ -156,8 +156,8 @@ size_t ext2_read_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_l
     while(i < ext2_blocksize(fs)/sizeof(uint32_t) && bl_index < length)
     {
       size_t read2 = ext2_read_indirect(fs, blocks[i], level-1, block_list, bl_index, length);
-      if(read2 == -1)
-        return -1;
+      if(read2 == 0)
+        return 0;
       bl_index += read2;
       read += read2;
       i++;
