@@ -134,6 +134,8 @@ typedef struct
   int groups_dirty;
   
   ext2_inode_t ino_buffer;
+  int buffer_inode;
+  int buffer_dirty;
 } ext2_data_t;
 
 #define ext2_blocksize(fs) (1024 << ((ext2_data_t *)(fs)->data)->superblock->block_size)
