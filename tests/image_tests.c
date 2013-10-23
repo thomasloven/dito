@@ -47,6 +47,7 @@ char *test_image_readwrite()
 {
   char buffer[2048];
   char buffer2[2048];
+  memset(buffer2, 0, 2048);
   FILE *fp = fopen("/dev/urandom",  "r");
   fread(buffer, 2048, 1, fp);
   fclose(fp);
@@ -56,7 +57,7 @@ char *test_image_readwrite()
   image_writeblocks(im, buffer, 5, 2);
 
   image_close(im);
-  image_load("tests/testimg2.img");
+  im = image_load("tests/testimg2.img");
   image_readblocks(im, buffer2, 5, 1);
 
   mu_assert(!memcmp(buffer, buffer2, 512), "Read did not return same as write");

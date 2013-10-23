@@ -116,6 +116,7 @@ image_t *image_load(char *filename)
 
     fseek(image->file, MBR_OFFSET, SEEK_SET);
     fread(&image->mbr, sizeof(MBR_entry_t), 4, image->file);
+    image->mbr_dirty = 0;
 
     return image;
 }
