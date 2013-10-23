@@ -37,7 +37,7 @@ tests: $(TESTS)
 $(TESTS): $(TARGET)
 
 valgrind:
-	VALGRIND="valgrind --leak-check=full --log-file=/tmp/valgrind-%p.log" $(MAKE)
+	VALGRIND="valgrind --leak-check=full --suppressions=valgrind_osx.supp --log-file=/tmp/valgrind-%p.log" $(MAKE)
 
 clean:
 	rm -rf build $(OBJECTS) $(TESTS)
