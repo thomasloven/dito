@@ -29,13 +29,37 @@ char *test_ext2_readdir()
   dirent_t *de;
   de = fs_readdir(fs, i, 0);
   mu_assert(!strcmp(de->name, "."), "Directory listing is wrong");
+  free(de->name);
   free(de);
   de = fs_readdir(fs, i, 1);
   mu_assert(!strcmp(de->name, ".."), "Directory listing is wrong");
+  free(de->name);
   free(de);
   de = fs_readdir(fs, i, 2);
   mu_assert(!strcmp(de->name, "lost+found"), "Directory listing is wrong");
+  free(de->name);
   free(de);
+
+  fs_close(fs);
+  partition_close(p);
+  image_close(im);
+  return NULL;
+}
+
+char *test_ext2_read()
+{
+  image_t *im = image_load("tests/testimg.img");
+  partition_t *p = partition_open(im, 0);
+  fs_t *fs = fs_load(p, ext2);
+
+  INODE i = fs_find(fs, "/");
+
+  ext2_dirinfo_t *buffer = malloc(1024);
+  fs_read(fs, i, buffer, 1024, 0);
+  mu_assert(!strncmp(buffer->name, ".", 1), "Read wrong directory listing.");
+
+
+  free(buffer);
 
   fs_close(fs);
   partition_close(p);
@@ -48,6 +72,7 @@ char *all_tests() {
   mu_suite_start();
   mu_run_test(test_ext2_load);
   mu_run_test(test_ext2_readdir);
+  mu_run_test(test_ext2_read);
   return NULL;
 }
 

@@ -226,6 +226,61 @@ size_t ext2_read_data(fs_t *fs, ext2_inode_t *node, void *buffer, size_t length)
 
 int ext2_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset)
 {
+  if(!fs)
+    return 0;
+  if(ino < 2)
+    return 0;
+  if(!buffer)
+    return 0;
+
+  
+  uint32_t *block_list;
+  void *buff;
+  ext2_inode_t *inode = malloc(sizeof(ext2_inode_t));
+  if(!ext2_read_inode(fs, inode, ino))
+    goto error;
+  if(offset > inode->size_low)
+    goto error;
+  if(offset + length > inode->size_low)
+    length = inode->size_low - offset;
+
+
+  uint32_t start_block = offset/ext2_blocksize(fs);
+  size_t block_offset = offset%ext2_blocksize(fs);
+  int num_blocks = length/ext2_blocksize(fs);
+  if(length%ext2_blocksize(fs))
+    num_blocks++;
+
+  
+  block_list = ext2_get_blocks(fs, inode);
+
+  
+  void *b = buff = malloc(num_blocks*ext2_blocksize(fs));
+  int i = start_block;
+  while(i <= start_block + num_blocks && block_list[i])
+  {
+    ext2_readblocks(fs, b, block_list[i], 1);
+    b = (void *)((size_t)b + ext2_blocksize(fs));
+    i++;
+  }
+  if(i < start_block + num_blocks)
+    goto error;
+
+  memcpy(buffer, (void *)((size_t)buff + block_offset), length);
+
+  free(buff);
+  free(block_list);
+  free(inode);
+
+  return length;
+
+error:
+  if(inode)
+    free(inode);
+  if(block_list)
+    free(block_list);
+  if(buff)
+    free(buff);
   return 0;
 }
 
@@ -294,7 +349,7 @@ void *ext2_hook_load(struct fs_st *fs)
   ext2_data_t *data = fs->data = malloc(sizeof(ext2_data_t));
 
   // Read superblock
-  data->superblock = malloc(sizeof(ext2_superblock_t));
+  data->superblock = malloc(EXT2_SUPERBLOCK_SIZE);
   partition_readblocks(fs->p, data->superblock, 2, 2);
   data->superblock_dirty = 0;
 

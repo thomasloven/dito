@@ -52,6 +52,8 @@ typedef struct // Superblock
   uint32_t orphan_inodes_head;
 }__attribute__((packed)) ext2_superblock_t;
 
+#define EXT2_SUPERBLOCK_SIZE 1024
+
 typedef struct // group
 {
   uint32_t block_bitmap;
