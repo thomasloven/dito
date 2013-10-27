@@ -56,9 +56,12 @@ char *test_ext2_read()
 
   ext2_dirinfo_t *buffer = malloc(1024);
   fs_read(fs, i, buffer, 1024, 0);
-  mu_assert(!strncmp(buffer->name, ".", 1), "Read wrong directory listing.");
+  mu_assert(!strcmp(buffer->name, "."), "Read wrong directory listing.");
+  free(buffer);
 
-
+  buffer = malloc(20);
+  fs_read(fs, i, buffer, 20, 12);
+  mu_assert(!strcmp(buffer->name, ".."), "Read with wrong offset.");
   free(buffer);
 
   fs_close(fs);

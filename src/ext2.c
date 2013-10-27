@@ -136,7 +136,54 @@ int ext2_write_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
   return 1;
 }
 
-size_t ext2_read_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_list, size_t bl_index, size_t length)
+uint32_t ext2_alloc_block(fs_t *fs, unsigned int group)
+{
+  if(!fs)
+    return 0;
+  ext2_data_t *data = fs->data;
+  if(group > ext2_numgroups(fs))
+    return 0;
+
+  // Check if preferred group is ok, or find another one
+  if(!data->groups[group].unallocated_blocks)
+    for(group = 0; group < ext2_numgroups(fs); group++)
+      if(data->groups[group].unallocated_blocks)
+        break;
+  if(group == ext2_numgroups(fs))
+    return 0;
+
+  // Load block bitmap
+  uint8_t *block_bitmap = malloc(ext2_blocksize(fs));
+  if(!ext2_readblocks(fs, block_bitmap, data->groups[group].block_bitmap, 1))
+    goto error;
+
+  // Allocate a block
+  unsigned int i = 0;
+  while(block_bitmap[i/0x8]&(0x1<<(i&0x7)) && i < data->superblock->blocks_per_group)
+    i++;
+  if(i == data->superblock->blocks_per_group)
+    goto error;
+  block_bitmap[i/0x8] |= 0x1 << (i&0x7);
+  data->groups[group].unallocated_blocks--;
+  data->groups_dirty = 1;
+  data->superblock->num_free_blocks--;
+  data->superblock_dirty = 1;
+  i++;
+  i += data->superblock->blocks_per_group*group;
+
+  // Write block bitmap back
+  if(!ext2_writeblocks(fs, block_bitmap, data->groups[group].block_bitmap, 1))
+    goto error;
+
+  return i;
+
+error:
+  if(block_bitmap)
+    free(block_bitmap);
+  return 0;
+}
+
+size_t ext2_get_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_list, size_t bl_index, size_t length)
 {
   if(!fs)
     return 0;
@@ -152,10 +199,10 @@ size_t ext2_read_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_l
     size_t read = 0;
     uint32_t *blocks = malloc(ext2_blocksize(fs));
     if(!ext2_readblocks(fs, blocks, block, 1))
-      return -1;
+      return 0;
     while(i < ext2_blocksize(fs)/sizeof(uint32_t) && bl_index < length)
     {
-      size_t read2 = ext2_read_indirect(fs, blocks[i], level-1, block_list, bl_index, length);
+      size_t read2 = ext2_get_indirect(fs, blocks[i], level-1, block_list, bl_index, length);
       if(read2 == 0)
         return 0;
       bl_index += read2;
@@ -166,6 +213,39 @@ size_t ext2_read_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_l
     return read;
   }
 }
+
+  size_t ext2_set_indirect(fs_t *fs, uint32_t *block, int level, uint32_t *block_list, size_t bl_index, int group)
+{
+  if(!fs)
+    return 0;
+  if(level > 3)
+    return 0;
+
+  if(level == 0)
+  {
+    *block = block_list[bl_index];
+    return 1;
+  } else {
+    uint32_t *blocks = malloc(ext2_blocksize(fs));
+    size_t i = 0;
+    size_t set = 0;
+    while(i < ext2_blocksize(fs)/sizeof(uint32_t) && block_list[bl_index])
+    {
+      size_t set_count = ext2_set_indirect(fs, &blocks[i], level-1, block_list, bl_index, group);
+      if(set_count == 0)
+        return 0;
+      bl_index += set_count;
+      set += set_count;
+      i++;
+    }
+    *block = ext2_alloc_block(fs, group);
+    if(!ext2_writeblocks(fs, blocks, *block, 1))
+      return 0;
+    free(blocks);
+    return set;
+  }
+}
+
 
 uint32_t *ext2_get_blocks(fs_t *fs, ext2_inode_t *node)
 {
@@ -182,14 +262,62 @@ uint32_t *ext2_get_blocks(fs_t *fs, ext2_inode_t *node)
   for(i = 0; i < num_blocks && i < 12; i++)
     block_list[i] = node->direct[i];
   if(i < num_blocks)
-    i += ext2_read_indirect(fs, node->indirect, 1, block_list, i, num_blocks);
+    i += ext2_get_indirect(fs, node->indirect, 1, block_list, i, num_blocks);
   if(i < num_blocks)
-    i += ext2_read_indirect(fs, node->dindirect, 2, block_list, i, num_blocks);
+    i += ext2_get_indirect(fs, node->dindirect, 2, block_list, i, num_blocks);
   if(i < num_blocks)
-    i += ext2_read_indirect(fs, node->tindirect, 3, block_list, i, num_blocks);
+    i += ext2_get_indirect(fs, node->tindirect, 3, block_list, i, num_blocks);
 
   block_list[i] = 0;
   return block_list;
+}
+
+uint32_t ext2_set_blocks(fs_t *fs, ext2_inode_t *node, uint32_t *blocks, int group)
+{
+  if(!fs)
+    return 0;
+  if(!node)
+    return 0;
+  int i = 0;
+  for(i = 0; blocks[i] && i < 12; i++)
+  {
+    node->direct[i] = blocks[i];
+  }
+  if(blocks[i])
+    i += ext2_set_indirect(fs, &node->indirect, 1, blocks, i, group);
+  if(blocks[i])
+    i += ext2_set_indirect(fs, &node->dindirect, 2, blocks, i, group);
+  if(blocks[i])
+    i += ext2_set_indirect(fs, &node->tindirect, 3, blocks, i, group);
+
+  if(blocks[i])
+    return 0;
+  return i;
+}
+
+uint32_t *ext2_make_blocks(fs_t *fs, ext2_inode_t *node, int group)
+{
+  if(!fs)
+    return 0;
+  if(!node)
+    return 0;
+  size_t blocks_needed = node->size_low / ext2_blocksize(fs);
+  if(node->size_low % ext2_blocksize(fs)) blocks_needed++;
+
+  uint32_t *block_list = calloc(blocks_needed + 1, sizeof(uint32_t));
+  unsigned int i;
+  for(i = 0; i < blocks_needed && i < 12; i++)
+  {
+    node->direct[i] = ext2_alloc_block(fs, group);
+    block_list[i] = node->direct[i];
+    if(!node->direct[i])
+      goto error;
+  }
+
+error:
+  if(block_list)
+    free(block_list);
+  return 0;
 }
 
 size_t ext2_read_data(fs_t *fs, ext2_inode_t *node, void *buffer, size_t length)
@@ -233,9 +361,8 @@ int ext2_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t o
   if(!buffer)
     return 0;
 
-  
-  uint32_t *block_list;
-  void *buff;
+  uint32_t *block_list = 0;
+  void *buff = 0;
   ext2_inode_t *inode = malloc(sizeof(ext2_inode_t));
   if(!ext2_read_inode(fs, inode, ino))
     goto error;
@@ -256,7 +383,7 @@ int ext2_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t o
 
   
   void *b = buff = malloc(num_blocks*ext2_blocksize(fs));
-  int i = start_block;
+  unsigned int i = start_block;
   while(i <= start_block + num_blocks && block_list[i])
   {
     ext2_readblocks(fs, b, block_list[i], 1);
@@ -286,11 +413,195 @@ error:
 
 int ext2_write(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset)
 {
+  if(!fs)
+    return 0;
+  if(ino < 2)
+    return 0;
+  if(!buffer)
+    return 0;
+
+  uint32_t *block_list = 0;
+  void *buff = 0;
+  ext2_inode_t *inode = malloc(sizeof(ext2_inode_t));
+  if(!ext2_read_inode(fs, inode, ino))
+    goto error;
+  if(offset > inode->size_low)
+    goto error;
+  if(offset + length > inode->size_low)
+    length = inode->size_low - offset;
+
+  uint32_t start_block = offset/ext2_blocksize(fs);
+  size_t block_offset = offset%ext2_blocksize(fs);
+  int num_blocks = length/ext2_blocksize(fs);
+  if(length%ext2_blocksize(fs))
+    num_blocks++;
+
+  block_list = ext2_get_blocks(fs, inode);
+
+  void *b = buff = malloc(num_blocks*ext2_blocksize(fs));
+
+  // Copy first part of first block to buffer
+  // and fill the rest with input buffer data
+  void *b2 = malloc(ext2_blocksize(fs));
+  ext2_readblocks(fs, b2, block_list[start_block], 1);
+  memcpy(buff, b2, block_offset);
+  memcpy((void *)((size_t)buff + block_offset), buffer, length);
+
+  unsigned int i = start_block;
+  // Write first block from temp buffer
+  ext2_writeblocks(fs, b2, block_list[i], 1);
+  i++;
+  b = (void *)((size_t)b + ext2_blocksize(fs));
+  // Write rest from ordinary buffer
+  while(i <= start_block + num_blocks && block_list[i])
+  {
+    ext2_writeblocks(fs, b, block_list[i], 1);
+    b = (void *)((size_t)b + ext2_blocksize(fs));
+    i++;
+  }
+  if(i < start_block + num_blocks)
+      goto error;
+
+  free(buff);
+  free(b2);
+  free(block_list);
+  free(inode);
+
+  return length;
+
+error:
+  if(inode)
+    free(inode);
+  if(block_list)
+    free(block_list);
+  if(buff)
+    free(buff);
   return 0;
 }
 
-INODE ext2_touch(struct fs_st *fs, fs_ftype_t type)
+INODE ext2_touch(struct fs_st *fs, fstat_t *st)
 {
+  // Sanity check
+  if(!fs)
+    return 0;
+  uint32_t *blocks = 0;
+  ext2_data_t *data = fs->data;
+  if(!data->superblock->num_free_inodes)
+    return 0;
+  size_t blocks_needed = st->size / ext2_blocksize(fs);
+  if(st->size % ext2_blocksize(fs)) blocks_needed++;
+
+  if(data->superblock->num_free_blocks < blocks_needed)
+    return 0;
+
+  // Find suitable group
+  int group = -1;
+  unsigned int i = 0;
+  for(i = 0; i < data->num_groups; i++)
+  {
+    if(data->groups[i].unallocated_inodes)
+    {
+      if(data->groups[i].unallocated_blocks >= blocks_needed)
+      {
+        group = i;
+        break;
+      }
+    }
+  }
+  if(group == -1)
+  {
+    for(i = 0; i < data->num_groups; i++)
+    {
+      if(data->groups[i].unallocated_inodes)
+      {
+        group = i;
+        break;
+      }
+    }
+  }
+  if(group == -1)
+    return 0;
+
+
+  // Allocate inode
+  uint8_t *inode_bitmap = malloc(ext2_blocksize(fs));
+  if(!ext2_readblocks(fs, inode_bitmap, data->groups[i].inode_bitmap, 1))
+    goto error;
+  uint32_t ino_num = 0;
+  while(ino_num < data->superblock->inodes_per_group)
+  {
+    if(!(inode_bitmap[ino_num/0x8]&(0x1<<(ino_num&0x7))))
+      break;
+    ino_num++;
+  }
+  if(ino_num == data->superblock->inodes_per_group)
+    goto error;
+
+  inode_bitmap[ino_num/0x8] |= (0x1<<(ino_num&0x7));
+  data->groups[i].unallocated_inodes--;
+  data->groups_dirty = 1;
+
+  ino_num += data->superblock->inodes_per_group*group;
+  INODE ret = ino_num;
+
+  // Set up inode
+  ext2_inode_t *ino = malloc(sizeof(ext2_inode_t));
+  ext2_read_inode(fs, ino, ino_num);
+
+  ino->type = 0;
+  if((st->mode & S_FIFO) == S_FIFO)
+    ino->type = EXT2_FIFO;
+  if((st->mode & S_CHR) == S_CHR)
+    ino->type = EXT2_CHDEV;
+  if((st->mode & S_DIR) == S_DIR)
+    ino->type = EXT2_DIR;
+  if((st->mode & S_BLK) == S_BLK)
+    ino->type = EXT2_BDEV;
+  if((st->mode & S_REG) == S_REG)
+    ino->type = EXT2_REGULAR;
+  if((st->mode & S_LINK) == S_LINK)
+    ino->type = EXT2_SYMLINK;
+  if((st->mode & S_SOCK) == S_SOCK)
+    ino->type = EXT2_SOCKET;
+  ino->type |= st->mode & 0777;
+  ino->uid = 0;
+  ino->size_low = st->size;
+  ino->atime = st->atime;
+  ino->ctime = st->ctime;
+  ino->mtime = st->mtime;
+  ino->gid = 0;
+  ino->link_count = 0;
+  ino->disk_sectors = blocks_needed*ext2_blocksize(fs)/BLOCK_SIZE;
+  ino->flags = 0;
+  ino->osval1 = 0;
+  ino->indirect = 0;
+  ino->dindirect = 0;
+  ino->tindirect = 0;
+  ino->generation = 0;
+  ino->extended_attributes = 0;
+  ino->size_high = 0;
+  for(i = 0; i < 12; i++)
+  {
+    ino->direct[i] = 0;
+    ino->osval2[i] = 0;
+  }
+
+  // Allocate blocks
+  blocks = malloc(sizeof(uint32_t)*(blocks_needed + 1));
+  for(i = 0; i < blocks_needed; i++)
+  {
+    blocks[i] = ext2_alloc_block(fs, group);
+  }
+  if(ext2_set_blocks(fs, ino, blocks, group) != blocks_needed)
+    goto error;
+
+  return ret;
+
+error:
+  if(inode_bitmap)
+    free(inode_bitmap);
+  if(blocks)
+    free(blocks);
   return 0;
 }
 
