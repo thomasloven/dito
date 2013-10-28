@@ -146,10 +146,10 @@ char *test_ext2_write()
 
 char *all_tests() {
   mu_suite_start();
-  /* mu_run_test(test_ext2_load); */
+  mu_run_test(test_ext2_load);
   mu_run_test(test_ext2_readwrite);
-  /* mu_run_test(test_ext2_readdir); */
-  /* mu_run_test(test_ext2_read); */
+  mu_run_test(test_ext2_readdir);
+  mu_run_test(test_ext2_read);
   mu_run_test(test_ext2_write);
   return NULL;
 }

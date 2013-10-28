@@ -722,7 +722,6 @@ void ext2_hook_close(struct fs_st *fs)
       groups_blocks++;
 
     // Find location of group descriptor table
-    data->groups = malloc(groups_blocks*ext2_blocksize(fs));
     size_t groups_start = 1;
     if(ext2_blocksize(fs) == 1024)
       groups_start++;
