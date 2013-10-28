@@ -100,7 +100,7 @@ int ext2_read_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
   inoblock += data->groups[group].inode_table;
 
   char *buff = malloc(2*ext2_blocksize(fs));
-  if(!ext2_read_groupblocks(fs, group, buff, inoblock, 2))
+  if(!ext2_readblocks(fs, buff, inoblock, 2))
     return 0;
   memcpy(buffer, (void *)((size_t)buff + inooffset), sizeof(ext2_inode_t));
 
@@ -119,17 +119,18 @@ int ext2_write_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
   if(num > (int)data->superblock->num_inodes)
     return 0;
 
-  int group = num / data->superblock->inodes_per_group;
-  int offset = num % data->superblock->inodes_per_group;
+  int group = (num-1) / data->superblock->inodes_per_group;
+  int offset = (num-1) % data->superblock->inodes_per_group;
 
   int inoblock = (offset*sizeof(ext2_inode_t))/ext2_blocksize(fs);
   size_t inooffset = (offset*sizeof(ext2_inode_t))%ext2_blocksize(fs);
+  inoblock += data->groups[group].inode_table;
 
   char *buff = malloc(2*ext2_blocksize(fs));
-  if(!ext2_read_groupblocks(fs, group, buff, inoblock, 2))
+  if(!ext2_readblocks(fs, buff, inoblock, 2))
     return 0;
   memcpy((void *)((size_t)buff + inooffset), buffer, sizeof(ext2_inode_t));
-  ext2_write_groupblocks(fs, group, buff, inoblock, 2);
+  ext2_writeblocks(fs, buff, inoblock, 2);
 
   free(buff);
 
@@ -545,7 +546,6 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
 
   ino_num += data->superblock->inodes_per_group*group;
   ino_num++; // Inodes start at 1
-  INODE ret = ino_num;
 
   // Set up inode
   ext2_inode_t *ino = malloc(sizeof(ext2_inode_t));
@@ -601,7 +601,7 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
   //Write everything
   ext2_writeblocks(fs, inode_bitmap, data->groups[group].inode_bitmap, 1);
   ext2_write_inode(fs, ino, ino_num);
-  return ret;
+  return ino_num;
 
 error:
   if(inode_bitmap)
