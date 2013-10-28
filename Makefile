@@ -5,6 +5,9 @@ PREFIX?=/usr/local/
 SOURCES=$(wildcard src/**/*.c src/*.c)
 OBJECTS=$(patsubst %.c,%.o,$(SOURCES))
 
+PROGRAMS_SRC=$(wildcard bin/*.c)
+PROGRAMS=$(patsubst %.c,%,$(PROGRAMS_SRC))
+
 TEST_SRC=$(wildcard tests/*_tests.c)
 TESTS=$(patsubst %.c,%,$(TEST_SRC))
 
@@ -12,7 +15,7 @@ TARGET=build/libimtools.a
 SO_TARGET=$(patsubst %.a,%.so,$(TARGET))
 
 
-all: $(TARGET) $(SO_TARGET) tests
+all: $(TARGET) $(SO_TARGET) tests $(PROGRAMS)
 
 dev: CFLAGS=-g -Wall -Isrc -Wall -Wextra $(OPTFLAGS)
 dev: all
@@ -24,6 +27,8 @@ $(TARGET): build $(OBJECTS)
 
 $(SO_TARGET): $(TARGET) $(OBJECTS)
 	$(CC) -shared -o $@ $(OBJECTS)
+
+$(PROGRAMS): CFLAGS += $(TARGET)
 
 build:
 	@mkdir -p build
@@ -40,7 +45,7 @@ valgrind:
 	VALGRIND="valgrind --leak-check=full --suppressions=valgrind_osx.supp --log-file=/tmp/valgrind-%p.log" $(MAKE)
 
 clean:
-	rm -rf build $(OBJECTS) $(TESTS)
+	rm -rf build $(OBJECTS) $(TESTS) $(PROGRAMS)
 	rm -f tests/tests.log
 	find . -name "*.gc*" -exec rm {} \;
 	rm -rf `find . -name "*.dSYM" -print`
