@@ -115,6 +115,47 @@ char *test_ext2_touch()
   return NULL;
 }
 
+char *test_ext2_write()
+{
+  system("cp tests/testimg.img tests/testimg2.img");
+
+  char buffer[2048];
+  char buffer2[2048];
+  memset(buffer2, 0, 2048);
+  FILE *fp = fopen("/dev/urandom",  "r");
+  fread(buffer, 2048, 1, fp);
+  fclose(fp);
+
+  image_t *im = image_load("tests/testimg2.img");
+  mu_assert(im, "No image file");
+  partition_t *p = partition_open(im, 0);
+  mu_assert(p, "No partition");
+  fs_t *fs = fs_load(p, ext2);
+  mu_assert(fs, "No file system");
+
+  fstat_t st =
+  {
+    1024*2,
+    S_REG | 0777,
+    time(0),
+    time(0),
+    time(0)
+  };
+
+  INODE i = fs_touch(fs, &st);
+  mu_assert(i, "No inode after touch");
+  mu_assert(fs_write(fs, i, buffer, 1024, 512), "Write failed");
+  mu_assert(fs_read(fs, i, buffer2, 2048, 0), "Read failed");
+
+  mu_assert(!memcmp(buffer, &buffer2[512], 1024), "Wrong data read or written");
+
+
+  fs_close(fs);
+  partition_close(p);
+  image_close(im);
+  return NULL;
+}
+
 
 char *all_tests() {
   mu_suite_start();
@@ -122,6 +163,7 @@ char *all_tests() {
   mu_run_test(test_ext2_readdir);
   mu_run_test(test_ext2_read);
   mu_run_test(test_ext2_touch);
+  mu_run_test(test_ext2_write);
   return NULL;
 }
 

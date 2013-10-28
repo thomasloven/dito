@@ -450,7 +450,7 @@ int ext2_write(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t 
 
   unsigned int i = start_block;
   // Write first block from temp buffer
-  ext2_writeblocks(fs, b2, block_list[i], 1);
+  ext2_writeblocks(fs, buff, block_list[i], 1);
   i++;
   b = (void *)((size_t)b + ext2_blocksize(fs));
   // Write rest from ordinary buffer
