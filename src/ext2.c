@@ -525,9 +525,11 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
 
   // Allocate inode
   uint8_t *inode_bitmap = malloc(ext2_blocksize(fs));
-  if(!ext2_readblocks(fs, inode_bitmap, data->groups[i].inode_bitmap, 1))
+  if(!ext2_readblocks(fs, inode_bitmap, data->groups[group].inode_bitmap, 1))
     goto error;
   uint32_t ino_num = 0;
+  if(group == 0)
+    ino_num = data->superblock->first_inode;
   while(ino_num < data->superblock->inodes_per_group)
   {
     if(!(inode_bitmap[ino_num/0x8]&(0x1<<(ino_num&0x7))))
@@ -542,6 +544,7 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
   data->groups_dirty = 1;
 
   ino_num += data->superblock->inodes_per_group*group;
+  ino_num++; // Inodes start at 1
   INODE ret = ino_num;
 
   // Set up inode
@@ -595,6 +598,9 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
   if(ext2_set_blocks(fs, ino, blocks, group) != blocks_needed)
     goto error;
 
+  //Write everything
+  ext2_writeblocks(fs, inode_bitmap, data->groups[group].inode_bitmap, 1);
+  ext2_write_inode(fs, ino, ino_num);
   return ret;
 
 error:
