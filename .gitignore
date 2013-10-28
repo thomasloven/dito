@@ -3,3 +3,5 @@ tests/*
 !tests/*.[ch]
 !tests/*.sh
 *.img
+bin/*
+!bin/*.[ch]
