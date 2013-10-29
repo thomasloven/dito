@@ -25,6 +25,8 @@ typedef unsigned int INODE;
 
 typedef enum fs_type_e {
   unknown,
+  native,
+  std,
   ext2,
   fat16,
   fat32,

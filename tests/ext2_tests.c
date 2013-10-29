@@ -8,9 +8,12 @@
 char *test_ext2_load()
 {
   image_t *im = image_load("tests/testimg.img");
+  mu_assert(im, "No image");
   partition_t *p = partition_open(im, 0);
+  mu_assert(p, "No partition");
 
   fs_t *fs = fs_load(p, ext2);
+  mu_assert(fs, "No filesystem");
 
   ext2_data_t *d = fs->data;
   mu_assert(d->num_groups == 3, "Wrong number of groups");
