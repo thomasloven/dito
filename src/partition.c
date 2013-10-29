@@ -11,6 +11,11 @@ partition_t *partition_open(image_t *im, int partition)
   p->partition = partition;
   p->offset = image_get_partition_start(im, partition);
   p->length = image_get_partition_length(im, partition);
+  if(p->offset == 0 || p->length == 0)
+  {
+    free(p);
+    return 0;
+  }
 
   return p;
 }
