@@ -94,13 +94,13 @@ int fs_write(fs_t *fs, INODE ino, void *buffer, size_t length, size_t offset)
   return fs->driver->write(fs, ino, buffer, length, offset);
 }
 
-INODE fs_touch(fs_t *fs, fs_ftype_t type)
+INODE fs_touch(fs_t *fs, fstat_t *st)
 {
   if(!fs)
     return 0;
   if(!fs->driver->touch)
     return 0;
-  return fs->driver->touch(fs, type);
+  return fs->driver->touch(fs, st);
 }
 
 dirent_t *fs_readdir(fs_t *fs, INODE dir, unsigned int num)

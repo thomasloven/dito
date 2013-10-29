@@ -44,7 +44,30 @@ typedef struct
   char *name;
 } dirent_t;
 
-typedef int fstat_t;
+typedef struct
+{
+  size_t size;
+  uint32_t mode;
+  uint32_t atime;
+  uint32_t ctime;
+  uint32_t mtime;
+}fstat_t;
+#define S_FIFO 0x1000
+#define S_CHR 0x2000
+#define S_DIR 0x4000
+#define S_BLK 0x6000
+#define S_REG 0x8000
+#define S_LINK 0xA000
+#define S_SOCK 0xC000
+#define S_RUSR 0400
+#define S_WUSR 0200
+#define S_XUSR 0100
+#define S_RGRP 0040
+#define S_WGRP 0020
+#define S_XGRP 0010
+#define S_ROTH 0004
+#define S_WOTH 0002
+#define S_XOTH 0001
 
 struct fs_st;
 
@@ -52,7 +75,7 @@ typedef struct
 {
   int (*read)(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset);
   int (*write)(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset);
-  INODE (*touch)(struct fs_st *fs, fs_ftype_t type);
+  INODE (*touch)(struct fs_st *fs, fstat_t *st);
   dirent_t *(*readdir)(struct fs_st *fs, INODE dir, unsigned int num);
   void (*link)(struct fs_st *fs, INODE ino, INODE dir, const char *name);
   void (*unlink)(struct fs_st *fs, INODE dir, unsigned int num);
@@ -80,7 +103,7 @@ int fs_check(fs_t *fs);
 
 int fs_read(fs_t *fs, INODE ino, void *buffer, size_t length, size_t offset);
 int fs_write(fs_t *fs, INODE ino, void *buffer, size_t length, size_t offset);
-INODE fs_touch(fs_t *fs, fs_ftype_t type);
+INODE fs_touch(fs_t *fs, fstat_t *st);
 dirent_t *fs_readdir(fs_t *fs, INODE dir, unsigned int num);
 void fs_link(fs_t *fs, INODE ino, INODE dir, const char *name);
 void fs_unlink(fs_t *fs, INODE dir, unsigned int num);

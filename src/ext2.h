@@ -132,11 +132,11 @@ typedef struct
   ext2_superblock_t *superblock;
   int superblock_dirty;
   ext2_groupd_t *groups;
-  int num_groups;
+  unsigned int num_groups;
   int groups_dirty;
   
   ext2_inode_t ino_buffer;
-  int buffer_inode;
+  uint32_t buffer_inode;
   int buffer_dirty;
 } ext2_data_t;
 
@@ -147,7 +147,7 @@ typedef struct
 
 int ext2_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset);
 int ext2_write(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset);
-INODE ext2_touch(struct fs_st *fs, fs_ftype_t type);
+INODE ext2_touch(struct fs_st *fs, fstat_t *st);
 dirent_t *ext2_readdir(struct fs_st *fs, INODE dir, unsigned int num);
 void ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name);
 void ext2_unlink(struct fs_st *fs, INODE dir, unsigned int num);
@@ -160,3 +160,7 @@ void ext2_hook_close(struct fs_st *fs);
 int ext2_hook_check(struct fs_st *fs);
 
 fs_driver_t ext2_driver;
+uint32_t *ext2_get_blocks(fs_t *fs, ext2_inode_t *node);
+int ext2_read_inode(struct fs_st *fs, ext2_inode_t *buffer, int num);
+int ext2_readblocks(struct fs_st *fs, void *buffer, size_t start, size_t len);
+int ext2_writeblocks(struct fs_st *fs, void *buffer, size_t start, size_t len);
