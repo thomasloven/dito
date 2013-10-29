@@ -594,6 +594,7 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
   {
     blocks[i] = ext2_alloc_block(fs, group);
   }
+  blocks[i] = 0;
   if(ext2_set_blocks(fs, ino, blocks, group) != blocks_needed)
     goto error;
 
@@ -663,6 +664,8 @@ void ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
   ext2_inode_t *iino = malloc(sizeof(ext2_inode_t));
   if(!ext2_read_inode(fs, iino, ino))
     return;
+  iino->link_count++;
+  ext2_write_inode(fs, iino, ino);
 
   ext2_dirinfo_t *di = malloc(dino->size_low + ext2_blocksize(fs));
   ext2_read(fs, dir, di, dino->size_low, 0);

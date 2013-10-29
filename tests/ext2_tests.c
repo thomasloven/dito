@@ -82,8 +82,11 @@ char *test_ext2_touch()
   unlink("tests/testimg2.img");
   system("cp tests/testimg.img tests/testimg2.img");
   image_t *im = image_load("tests/testimg2.img");
+  mu_assert(im, "No image file");
   partition_t *p = partition_open(im, 0);
+  mu_assert(p, "No partition");
   fs_t *fs = fs_load(p, ext2);
+  mu_assert(fs, "No file system");
 
   fstat_t st =
   {
