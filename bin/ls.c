@@ -5,10 +5,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <fcntl.h>
 
 void usage(const char *argv[])
 {
-  printf("usage: %s image_file:partition [-l] path\n", argv[0]);
+  printf("usage: %s image_file:partition [-l] [path]\n", argv[0]);
 }
 
 int main(int argc, const char *argv[])
@@ -22,6 +23,7 @@ int main(int argc, const char *argv[])
   partition_t *p = 0;
   fs_t *fs = 0;
   dirent_t *de = 0;
+  fstat_t *st = 0;
   if(argc < 2 || argc > 4)
   {
     usage(argv);
@@ -76,12 +78,14 @@ int main(int argc, const char *argv[])
   im = image_load(image_name);
   if(!im)
   {
+    fprintf(stderr, "%s: Image file could not load\n", argv[0]);
     retval = 1;
     goto end;
   }
   p = partition_open(im, partition);
   if(!p)
   {
+    fprintf(stderr, "%s: Partition could not be read\n", argv[0]);
     retval = 0;
     goto end;
   }
@@ -90,6 +94,14 @@ int main(int argc, const char *argv[])
   INODE dir = fs_find(fs, path);
   if(!dir)
   {
+    fprintf(stderr, "%s: %s: No such file or directory\n", argv[0], path);
+    retval = 1;
+    goto end;
+  }
+  st = fs_fstat(fs, dir);
+  if((st->mode & S_DIR) != S_DIR)
+  {
+    fprintf(stderr, "%s: %s: Not a directory\n", argv[0], path);
     retval = 1;
     goto end;
   }
@@ -98,7 +110,7 @@ int main(int argc, const char *argv[])
   {
     if(detailed)
     {
-      fstat_t *st = fs_fstat(fs, de->ino);
+      st = fs_fstat(fs, de->ino);
       printf("%c%c%c%c%c%c%c%c%c%c", \
           ((st->mode & S_DIR) == S_DIR)?'d':'-', \
           ((st->mode & S_RUSR) == S_RUSR)?'r':'-', \
