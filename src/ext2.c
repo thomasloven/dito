@@ -247,7 +247,6 @@ size_t ext2_get_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_li
   }
 }
 
-
 uint32_t *ext2_get_blocks(fs_t *fs, ext2_inode_t *node)
 {
   if(!fs)
@@ -729,7 +728,42 @@ void ext2_unlink(struct fs_st *fs, INODE dir, unsigned int num)
 
 fstat_t *ext2_fstat(struct fs_st *fs, INODE ino)
 {
-  return 0;
+  if(!fs)
+    return 0;
+  if(!ino)
+    return 0;
+  ext2_inode_t *i = malloc(sizeof(ext2_inode_t));
+  if(!ext2_read_inode(fs, i, ino))
+    return 0;
+
+  fstat_t *ret = malloc(sizeof(fstat_t));
+  ret->size = i->size_low;
+  ret->mode = 0;
+  if((i->type & EXT2_FIFO) == EXT2_FIFO) ret->mode |= S_FIFO;
+  if((i->type & EXT2_CHDEV) == EXT2_CHDEV) ret->mode |= S_CHR;
+  if((i->type & EXT2_DIR) == EXT2_DIR) ret->mode |= S_DIR;
+  if((i->type & EXT2_BDEV) == EXT2_BDEV) ret->mode |= S_BLK;
+  if((i->type & EXT2_REGULAR) == EXT2_REGULAR) ret->mode |= S_REG;
+  if((i->type & EXT2_SYMLINK) == EXT2_SYMLINK) ret->mode |= S_LINK;
+  if((i->type & EXT2_SOCKET) == EXT2_SOCKET) ret->mode |= S_SOCK;
+
+  if((i->type & EXT2_UR) == EXT2_UR) ret->mode |= S_RUSR;
+  if((i->type & EXT2_UW) == EXT2_UW) ret->mode |= S_WUSR;
+  if((i->type & EXT2_UX) == EXT2_UX) ret->mode |= S_XUSR;
+  if((i->type & EXT2_GR) == EXT2_GR) ret->mode |= S_RGRP;
+  if((i->type & EXT2_GW) == EXT2_GW) ret->mode |= S_WGRP;
+  if((i->type & EXT2_GX) == EXT2_GX) ret->mode |= S_XGRP;
+  if((i->type & EXT2_OR) == EXT2_OR) ret->mode |= S_ROTH;
+  if((i->type & EXT2_OW) == EXT2_OW) ret->mode |= S_WOTH;
+  if((i->type & EXT2_OX) == EXT2_OX) ret->mode |= S_XOTH;
+
+  ret->atime = i->atime;
+  ret->ctime = i->ctime;
+  ret->mtime = i->mtime;
+
+  free(i);
+  
+  return ret;
 }
 
 

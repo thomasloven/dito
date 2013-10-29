@@ -79,6 +79,7 @@ char *test_ext2_read()
 
 char *test_ext2_touch()
 {
+  unlink("tests/testimg2.img");
   system("cp tests/testimg.img tests/testimg2.img");
   image_t *im = image_load("tests/testimg2.img");
   partition_t *p = partition_open(im, 0);
@@ -117,6 +118,7 @@ char *test_ext2_touch()
 
 char *test_ext2_write()
 {
+  unlink("tests/testimg2.img");
   system("cp tests/testimg.img tests/testimg2.img");
 
   char buffer[2048];
@@ -158,8 +160,9 @@ char *test_ext2_write()
 
 char *test_ext2_link()
 {
-  system("cp tests/testimg.img tests/testimg3.img");
-  image_t *im = image_load("tests/testimg3.img");
+  unlink("tests/testimg2.img");
+  system("cp tests/testimg.img tests/testimg2.img");
+  image_t *im = image_load("tests/testimg2.img");
   mu_assert(im, "No image file");
   partition_t *p = partition_open(im, 0);
   mu_assert(p, "No partition");
@@ -188,6 +191,54 @@ char *test_ext2_link()
   de = fs_readdir(fs, dir, 3);
   mu_assert(de->ino == i, "Wrong inode from readdir");
   mu_assert(!strcmp(de->name, "TestFile"), "Wrong name from readdir");
+
+  fs_close(fs);
+  partition_close(p);
+  image_close(im);
+  return NULL;
+}
+
+char *test_ext2_fstat()
+{
+  unlink("tests/testimg2.img");
+  system("cp tests/testimg.img tests/testimg2.img");
+  image_t *im = image_load("tests/testimg2.img");
+  mu_assert(im, "No image file");
+  partition_t *p = partition_open(im, 0);
+  mu_assert(p, "No partition");
+  fs_t *fs = fs_load(p, ext2);
+  mu_assert(fs, "No file system");
+
+  fstat_t st =
+  {
+    1024*2,
+    S_REG | 0777,
+    time(0),
+    time(0),
+    time(0)
+  };
+
+  INODE i = fs_touch(fs, &st);
+  mu_assert(i, "No inode after touch");
+  fstat_t *ff = fs_fstat(fs, i);
+  mu_assert(ff, "No fstat returned");
+  mu_assert(ff->size == 1024*2, "Wrong size");
+  mu_assert(ff->mode == (S_REG | 0777), "Wrong mode");
+  mu_assert(ff->atime == st.atime, "Wrong access time");
+  mu_assert(ff->ctime == st.ctime, "Wrong creation time");
+  mu_assert(ff->mtime == st.mtime, "Wrong modification time");
+  INODE dir = fs_find(fs, "/lost+found");
+
+  free(ff);
+  ff = fs_fstat(fs, dir);
+  mu_assert(ff, "No fstat returned (dir)");
+  mu_assert(ff->size == 1024, "Wrong dir size");
+  mu_assert(ff->mode & S_DIR, "Not a directory");
+  free(ff);
+
+  fs_close(fs);
+  partition_close(p);
+  image_close(im);
   return NULL;
 }
 
@@ -200,6 +251,7 @@ char *all_tests() {
   mu_run_test(test_ext2_touch);
   mu_run_test(test_ext2_write);
   mu_run_test(test_ext2_link);
+  mu_run_test(test_ext2_fstat);
   return NULL;
 }
 
