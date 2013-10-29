@@ -156,6 +156,41 @@ char *test_ext2_write()
   return NULL;
 }
 
+char *test_ext2_link()
+{
+  system("cp tests/testimg.img tests/testimg3.img");
+  image_t *im = image_load("tests/testimg3.img");
+  mu_assert(im, "No image file");
+  partition_t *p = partition_open(im, 0);
+  mu_assert(p, "No partition");
+  fs_t *fs = fs_load(p, ext2);
+  mu_assert(fs, "No file system");
+
+  fstat_t st =
+  {
+    1024*2,
+    S_REG | 0777,
+    time(0),
+    time(0),
+    time(0)
+  };
+
+  INODE i = fs_touch(fs, &st);
+  mu_assert(i, "No inode after touch");
+  INODE dir = fs_find(fs, "/");
+
+  fs_link(fs, i, dir, "TestFile");
+
+  INODE j = fs_find(fs, "/TestFile");
+  mu_assert(j == i, "Wrong inode from fs_find()");
+
+  dirent_t *de;
+  de = fs_readdir(fs, dir, 3);
+  mu_assert(de->ino == i, "Wrong inode from readdir");
+  mu_assert(!strcmp(de->name, "TestFile"), "Wrong name from readdir");
+  return NULL;
+}
+
 
 char *all_tests() {
   mu_suite_start();
@@ -164,6 +199,7 @@ char *all_tests() {
   mu_run_test(test_ext2_read);
   mu_run_test(test_ext2_touch);
   mu_run_test(test_ext2_write);
+  mu_run_test(test_ext2_link);
   return NULL;
 }
 

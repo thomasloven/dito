@@ -647,6 +647,78 @@ dirent_t *ext2_readdir(struct fs_st *fs, INODE dir, unsigned int num)
 
 void ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
 {
+  if(!fs)
+    return;
+  if(!ino)
+    return;
+  if(!dir)
+    return;
+  if(!name)
+    return;
+
+  ext2_data_t *data = fs->data;
+
+  ext2_inode_t *dino = malloc(sizeof(ext2_inode_t));
+  if(!ext2_read_inode(fs, dino, dir))
+    return;
+  ext2_inode_t *iino = malloc(sizeof(ext2_inode_t));
+  if(!ext2_read_inode(fs, iino, ino))
+    return;
+
+  ext2_dirinfo_t *di = malloc(dino->size_low + ext2_blocksize(fs));
+  ext2_read(fs, dir, di, dino->size_low, 0);
+  ext2_dirinfo_t *next = di, *current;
+  // Find last direntry
+  while((size_t)next < ((size_t)di + dino->size_low))
+  {
+    current = next;
+    next = (void *)((size_t)current + current->record_length);
+  }
+  // New direntry is right after the last one
+  next = (void *)((size_t)current->name + current->name_length + 1);
+  // And shorten the last one
+  current->record_length = (size_t)next - (size_t)current;
+
+  next->inode = ino;
+  strcpy(next->name, name);
+  next->name_length = strlen(name);
+  next->file_type = \
+    (((iino->type & EXT2_FIFO) == EXT2_FIFO)?EXT2_DIR_FIFO:0) + \
+    (((iino->type & EXT2_CHDEV) == EXT2_CHDEV)?EXT2_DIR_CHDEV:0) + \
+    (((iino->type & EXT2_DIR) == EXT2_DIR)?EXT2_DIR_DIR:0) + \
+    (((iino->type & EXT2_BDEV) == EXT2_BDEV)?EXT2_DIR_BDEV:0) + \
+    (((iino->type & EXT2_REGULAR) == EXT2_REGULAR)?EXT2_DIR_REGULAR:0) + \
+    (((iino->type & EXT2_SYMLINK) == EXT2_SYMLINK)?EXT2_DIR_SYMLINK:0) + \
+    (((iino->type & EXT2_SOCKET) == EXT2_SOCKET)?EXT2_DIR_SOCKET:0);
+  next->record_length = (size_t)next->name + next->name_length + 1;
+
+  // Lengthen last entry
+  if(((size_t)next + next->record_length) > dino->size_low)
+  {
+    // Increase size of directory
+    uint32_t *blocks = ext2_get_blocks(fs, dino);
+    uint32_t *blocks2 = calloc(dino->size_low/ext2_blocksize(fs) + 1, sizeof(uint32_t));
+    unsigned int i = 0;
+    for(i = 0; i < dino->size_low/ext2_blocksize(fs); i++)
+    {
+      blocks2[i] = blocks[i];
+    }
+    blocks2[i] = ext2_alloc_block(fs, ino/data->superblock->inodes_per_group);
+    ext2_set_blocks(fs, dino, blocks2, ino/data->superblock->inodes_per_group);
+    free(blocks);
+    free(blocks2);
+    dino->size_low += ext2_blocksize(fs);
+    ext2_write_inode(fs, dino, dir);
+  }
+  next->record_length = dino->size_low - ((size_t)next - (size_t)di);
+
+  // Write index back
+  ext2_write(fs, dir, di, dino->size_low, 0);
+
+  free(di);
+  free(iino);
+  free(dino);
+  
   return;
 }
 
