@@ -13,6 +13,7 @@ fs_driver_t ext2_driver = {
   ext2_link,
   ext2_unlink,
   ext2_fstat,
+  ext2_mkdir,
   2,
   ext2_hook_load,
   ext2_hook_create,
@@ -645,25 +646,25 @@ dirent_t *ext2_readdir(struct fs_st *fs, INODE dir, unsigned int num)
   return de;
 }
 
-void ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
+int ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
 {
   if(!fs)
-    return;
+    return 1;
   if(!ino)
-    return;
+    return 1;
   if(!dir)
-    return;
+    return 1;
   if(!name)
-    return;
+    return 1;
 
   ext2_data_t *data = fs->data;
 
   ext2_inode_t *dino = malloc(sizeof(ext2_inode_t));
   if(!ext2_read_inode(fs, dino, dir))
-    return;
+    return 1;
   ext2_inode_t *iino = malloc(sizeof(ext2_inode_t));
   if(!ext2_read_inode(fs, iino, ino))
-    return;
+    return 1;
   iino->link_count++;
   ext2_write_inode(fs, iino, ino);
 
@@ -721,12 +722,12 @@ void ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
   free(iino);
   free(dino);
   
-  return;
+  return 0;
 }
 
-void ext2_unlink(struct fs_st *fs, INODE dir, unsigned int num)
+int ext2_unlink(struct fs_st *fs, INODE dir, unsigned int num)
 {
-  return;
+  return 1;
 }
 
 fstat_t *ext2_fstat(struct fs_st *fs, INODE ino)
@@ -767,6 +768,11 @@ fstat_t *ext2_fstat(struct fs_st *fs, INODE ino)
   free(i);
   
   return ret;
+}
+
+int ext2_mkdir(struct fs_st *fs, INODE parent, const char *name)
+{
+  return 1;
 }
 
 
