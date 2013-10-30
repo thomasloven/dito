@@ -115,4 +115,5 @@ int fs_mkdir(struct fs_st *fs, INODE parent, const char *name);
 
 INODE fs_finddir(fs_t *fs, INODE dir, const char *name);
 INODE fs_find(fs_t *fs, const char *path);
+INODE fs_touchp(fs_t *fs, fstat_t *st, const char *path);
 
