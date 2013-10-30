@@ -79,9 +79,10 @@ typedef struct
   int (*write)(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset);
   INODE (*touch)(struct fs_st *fs, fstat_t *st);
   dirent_t *(*readdir)(struct fs_st *fs, INODE dir, unsigned int num);
-  void (*link)(struct fs_st *fs, INODE ino, INODE dir, const char *name);
-  void (*unlink)(struct fs_st *fs, INODE dir, unsigned int num);
+  int (*link)(struct fs_st *fs, INODE ino, INODE dir, const char *name);
+  int (*unlink)(struct fs_st *fs, INODE dir, unsigned int num);
   fstat_t *(*fstat)(struct fs_st *fs, INODE ino);
+  int (*mkdir)(struct fs_st *fs, INODE parent, const char *name);
   INODE root;
 
   void *(*hook_load)(struct fs_st *fs);
@@ -107,9 +108,10 @@ int fs_read(fs_t *fs, INODE ino, void *buffer, size_t length, size_t offset);
 int fs_write(fs_t *fs, INODE ino, void *buffer, size_t length, size_t offset);
 INODE fs_touch(fs_t *fs, fstat_t *st);
 dirent_t *fs_readdir(fs_t *fs, INODE dir, unsigned int num);
-void fs_link(fs_t *fs, INODE ino, INODE dir, const char *name);
-void fs_unlink(fs_t *fs, INODE dir, unsigned int num);
+int fs_link(fs_t *fs, INODE ino, INODE dir, const char *name);
+int fs_unlink(fs_t *fs, INODE dir, unsigned int num);
 fstat_t *fs_fstat(struct fs_st *fs, INODE ino);
+int fs_mkdir(struct fs_st *fs, INODE parent, const char *name);
 
 INODE fs_finddir(fs_t *fs, INODE dir, const char *name);
 INODE fs_find(fs_t *fs, const char *path);
