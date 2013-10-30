@@ -120,6 +120,7 @@ int fs_link(fs_t *fs, INODE ino, INODE dir, const char *name)
     return 1;
   if(fs->driver->link)
     return fs->driver->link(fs, ino, dir, name);
+  return 1;
 }
 
 int fs_unlink(fs_t *fs, INODE dir, unsigned int num)
@@ -128,6 +129,7 @@ int fs_unlink(fs_t *fs, INODE dir, unsigned int num)
     return 1;
   if(fs->driver->unlink)
     return fs->driver->unlink(fs, dir, num);
+  return 1;
 }
 
 fstat_t *fs_fstat(struct fs_st *fs, INODE ino)
@@ -186,4 +188,24 @@ INODE fs_find(fs_t *fs, const char *path)
   }
   free(npath);
   return current;
+}
+
+INODE fs_touchp(fs_t *fs, fstat_t *st, const char *path)
+{
+  INODE ret = fs_touch(fs, st);
+  char *dir = strdup(path);
+  char *de = strrchr(dir, '/');
+  de[0] = '\0';
+  INODE dir_ino = fs_find(fs, dir);
+  if(!dir_ino)
+  {
+    free(dir);
+    return 0;
+  }
+  if(fs_link(fs, ret, dir_ino, &de[1]))
+  {
+    free(dir);
+    return 0;
+  }
+  return ret;
 }
