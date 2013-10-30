@@ -1,10 +1,13 @@
-
 #include <stdio.h>
 #include <image.h>
 #include <partition.h>
 #include <fs.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
+#define BUFFER_SIZE 1024
 
 typedef struct path_st
 {
@@ -13,6 +16,21 @@ typedef struct path_st
   int partition;
   char *path;
 } path_t;
+
+enum ftype {
+  ftype_std,
+  ftype_native,
+  ftype_image
+};
+typedef struct file_st
+{
+  enum ftype type;
+  fs_t *fs;
+  INODE ino;
+  size_t offset;
+  FILE *file;
+  size_t size;
+} file_t;
 
 path_t *parse_path(const char *input)
 {
@@ -102,6 +120,42 @@ void free_path(path_t *p)
   free(p);
 }
 
+size_t iread(void *ptr, size_t size, size_t nitems, file_t *file)
+{
+  int ret;
+  if(file->type == ftype_image)
+  {
+    ret = fs_read(file->fs, file->ino, ptr, size*nitems, file->offset);
+    file->offset += ret;
+  }
+  if(file->type == ftype_native)
+  {
+    ret = fread(ptr, size, nitems, file->file);
+  }
+
+  return ret;
+}
+
+size_t iwrite(void *ptr, size_t size, size_t nitems, file_t *file)
+{
+  int ret;
+  if(file->type == ftype_image)
+  {
+    ret = fs_write(file->fs, file->ino, ptr, size*nitems, file->offset);
+    file->offset += ret;
+  }
+  if(file->type == ftype_native)
+  {
+    ret = fwrite(ptr, size, nitems, file->file);
+  }
+  if(file->type == ftype_std)
+  {
+    ret = fwrite(ptr, size, nitems, stdout);
+  }
+  
+  return ret;
+}
+
 void usage(const char *argv[])
 {
   printf("usage: %s [type:image_file:partition:]source [type:image_file:partition:]dest\n", argv[0]);
@@ -114,12 +168,16 @@ int main(int argc, const char *argv[])
   int retval = 0;
   path_t *src_path = 0;
   path_t *dst_path = 0;
+  file_t src_f = {0, 0, 0, 0, 0, 0};
+  file_t dst_f = {0, 0, 0, 0, 0, 0};
   image_t *src_im = 0;
   image_t *dst_im = 0;
   partition_t *src_p = 0;
   partition_t *dst_p = 0;
   fs_t *src_fs = 0;
   fs_t *dst_fs = 0;
+  void *buffer;
+  FILE *tmpf;
 
   if(argc != 3)
   {
@@ -168,7 +226,7 @@ int main(int argc, const char *argv[])
   // Load destination image
   if(dst_path->type != native && dst_path->type != std)
   {
-    if(!strcmp(dst_path->image,src_path->image))
+    if(src_path->image && !strcmp(dst_path->image,src_path->image))
     {
       dst_im = src_im;
       if(dst_path->partition == src_path->partition)
@@ -211,6 +269,88 @@ int main(int argc, const char *argv[])
     }
   }
 
+  buffer = malloc(BUFFER_SIZE);
+  int readcount = 0;
+  if(src_path->type == std)
+  {
+    // If source is stdin
+    // read data to temporary file
+    char tmpfilename[256];
+    sprintf(tmpfilename, "/tmp/imtools_%d.tmp", getpid());
+    tmpf = fopen(tmpfilename, "w+");
+    while((readcount = fread(buffer, 1, BUFFER_SIZE, stdin)))
+    {
+      fwrite(buffer, 1, readcount, tmpf);
+    }
+    if(ferror(stdin))
+    {
+      fprintf(stderr, "%s: Error reading from stdin\n", argv[0]);
+      retval = 0;
+      goto end;
+    }
+    fclose(tmpf);
+    src_path->type = native;
+    src_path->path = strdup(tmpfilename);
+  } 
+  if(src_path->type == native)
+  {
+    src_f.type = ftype_native;
+    src_f.file = fopen(src_path->path, "r");
+  } else {
+    src_f.type = ftype_image;
+    src_f.fs = src_fs;
+    src_f.ino = fs_find(src_fs, src_path->path);
+    src_f.offset = 0;
+  }
+
+  if(dst_path->type == std)
+  {
+    dst_f.type = ftype_std;
+  } else if(dst_path->type == native) {
+    dst_f.type = ftype_native;
+    dst_f.file = fopen(dst_path->path, "w+");
+  } else {
+    dst_f.type = ftype_image;
+    dst_f.fs = dst_fs;
+    fstat_t *st;
+    if(src_f.type == ftype_image)
+    {
+      st = fs_fstat(src_f.fs, src_f.ino);
+    } else {
+      // Create new file in the image
+      st = malloc(sizeof(fstat_t));
+      struct stat src_st;
+      stat(src_path->path, &src_st);
+      st->size = src_st.st_size;
+      st->mode = S_CHR | S_RUSR | S_XGRP | S_WOTH;
+      if((src_st.st_mode & S_IFIFO) == S_IFIFO) st->mode = S_FIFO;
+      if((src_st.st_mode & S_IFCHR) == S_IFCHR) st->mode = S_CHR;
+      if((src_st.st_mode & S_IFDIR) == S_IFDIR) st->mode = S_DIR;
+      if((src_st.st_mode & S_IFBLK) == S_IFBLK) st->mode = S_BLK;
+      if((src_st.st_mode & S_IFREG) == S_IFREG) st->mode = S_REG;
+      if((src_st.st_mode & S_IFLNK) == S_IFLNK) st->mode = S_LINK;
+      if((src_st.st_mode & S_IFSOCK) == S_IFSOCK) st->mode = S_SOCK;
+      st->mode |= src_st.st_mode & 0777;
+      st->atime = src_st.st_atimespec.tv_sec;
+      st->ctime = src_st.st_ctimespec.tv_sec;
+      st->mtime = src_st.st_mtimespec.tv_sec;
+    }
+    dst_f.ino = fs_touch(dst_fs, st);
+    char *dir = strdup(dst_path->path);
+    char *de = strrchr(dir, '/');
+    de[0] = '\0';
+    INODE dir_ino = fs_find(dst_fs, dir);
+    if(!dir_ino)
+    {
+      free(dir);
+      fprintf(stderr, "%s: Could not find parent directory for image target\n", argv[0]);
+      retval = 1;
+      goto end;
+    }
+    fs_link(dst_fs, dst_f.ino, dir_ino, &de[1]);
+  }
+
+
 
   if(src_path->type == native)
     printf(" Source: %s\n", src_path->path);
@@ -220,6 +360,10 @@ int main(int argc, const char *argv[])
     printf(" Source: %d %s %d %s\n", src_path->type, src_path->image, src_path->partition, src_path->path);
 
 
+  while((readcount = iread(buffer, 1, BUFFER_SIZE, &src_f)))
+  {
+    iwrite(buffer, 1, readcount, &dst_f);
+  }
 
 
 end:
