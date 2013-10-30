@@ -335,19 +335,7 @@ int main(int argc, const char *argv[])
       st->ctime = src_st.st_ctimespec.tv_sec;
       st->mtime = src_st.st_mtimespec.tv_sec;
     }
-    dst_f.ino = fs_touch(dst_fs, st);
-    char *dir = strdup(dst_path->path);
-    char *de = strrchr(dir, '/');
-    de[0] = '\0';
-    INODE dir_ino = fs_find(dst_fs, dir);
-    if(!dir_ino)
-    {
-      free(dir);
-      fprintf(stderr, "%s: Could not find parent directory for image target\n", argv[0]);
-      retval = 1;
-      goto end;
-    }
-    fs_link(dst_fs, dst_f.ino, dir_ino, &de[1]);
+    dst_f.ino = fs_touchp(dst_fs, st, dst_path->path);
   }
 
 
