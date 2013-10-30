@@ -694,6 +694,8 @@ int ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
     (((iino->type & EXT2_SYMLINK) == EXT2_SYMLINK)?EXT2_DIR_SYMLINK:0) + \
     (((iino->type & EXT2_SOCKET) == EXT2_SOCKET)?EXT2_DIR_SOCKET:0);
   next->record_length = (size_t)next->name + next->name_length + 1;
+  if(next->record_length < 12)
+    next->record_length = 12;
 
   // Lengthen last entry
   if(((size_t)next + next->record_length) > dino->size_low)
@@ -772,7 +774,51 @@ fstat_t *ext2_fstat(struct fs_st *fs, INODE ino)
 
 int ext2_mkdir(struct fs_st *fs, INODE parent, const char *name)
 {
-  return 1;
+  if(!fs)
+    return 1;
+  if(!parent)
+    return 1;
+  if(!name)
+    return 1;
+
+  printf("In mkdir\n");
+
+  fstat_t st;
+
+  st.size = ext2_blocksize(fs);
+  st.mode = S_DIR | 0755;
+  st.atime = time(0);
+  st.ctime = time(0);
+  st.mtime = time(0);
+
+  INODE child = fs_touch(fs, &st);
+  if(fs_link(fs, child, parent, name))
+  {
+    return 1;
+  }
+
+  // Increase link count
+  ext2_inode_t *ino = malloc(sizeof(ext2_inode_t));
+  ext2_read_inode(fs, ino, child);
+  ino->link_count++;
+  ext2_write_inode(fs, ino, child);
+  free(ino);
+
+  // Link .
+  ext2_dirinfo_t *data = calloc(1, ext2_blocksize(fs));
+  data->inode = child;
+  data->record_length = ext2_blocksize(fs);
+  data->name_length = 1;
+  data->file_type = EXT2_DIR_DIR;
+  strcpy(data->name, ".");
+  fs_write(fs, child, data, ext2_blocksize(fs), 0);
+  free(data);
+
+  // Link ..
+  fs_link(fs, parent, child, "..");
+
+
+  return 0;
 }
 
 
