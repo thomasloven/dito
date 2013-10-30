@@ -114,20 +114,20 @@ dirent_t *fs_readdir(fs_t *fs, INODE dir, unsigned int num)
   return fs->driver->readdir(fs, dir, num);
 }
 
-void fs_link(fs_t *fs, INODE ino, INODE dir, const char *name)
+int fs_link(fs_t *fs, INODE ino, INODE dir, const char *name)
 {
   if(!fs)
-    return;
+    return 1;
   if(fs->driver->link)
-    fs->driver->link(fs, ino, dir, name);
+    return fs->driver->link(fs, ino, dir, name);
 }
 
-void fs_unlink(fs_t *fs, INODE dir, unsigned int num)
+int fs_unlink(fs_t *fs, INODE dir, unsigned int num)
 {
   if(!fs)
-    return;
+    return 1;
   if(fs->driver->unlink)
-    fs->driver->unlink(fs, dir, num);
+    return fs->driver->unlink(fs, dir, num);
 }
 
 fstat_t *fs_fstat(struct fs_st *fs, INODE ino)
