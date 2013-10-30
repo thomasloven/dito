@@ -141,6 +141,15 @@ fstat_t *fs_fstat(struct fs_st *fs, INODE ino)
   return fs->driver->fstat(fs, ino);
 }
 
+int fs_mkdir(struct fs_st *fs, INODE parent, const char *name)
+{
+  if(!fs)
+    return 1;
+  if(!fs->driver->mkdir)
+    return 1;
+  return fs->driver->mkdir(fs, parent, name);
+}
+
 
 INODE fs_finddir(fs_t *fs, INODE dir, const char *name)
 {
