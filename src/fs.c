@@ -120,6 +120,7 @@ int fs_link(fs_t *fs, INODE ino, INODE dir, const char *name)
     return 1;
   if(fs->driver->link)
     return fs->driver->link(fs, ino, dir, name);
+  return 1;
 }
 
 int fs_unlink(fs_t *fs, INODE dir, unsigned int num)
@@ -128,6 +129,7 @@ int fs_unlink(fs_t *fs, INODE dir, unsigned int num)
     return 1;
   if(fs->driver->unlink)
     return fs->driver->unlink(fs, dir, num);
+  return 1;
 }
 
 fstat_t *fs_fstat(struct fs_st *fs, INODE ino)
