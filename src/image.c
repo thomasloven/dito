@@ -104,6 +104,11 @@ image_t *image_load(char *filename)
     image_t *image = malloc(sizeof(image_t));
     image->filename = strdup(filename);
     image->file = fopen(filename, "r+");
+    if(!image->file)
+    {
+      free(image);
+      return 0;
+    }
 
     fseek(image->file, 0, SEEK_END);
     size_t filesize = ftell(image->file);

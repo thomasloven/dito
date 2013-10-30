@@ -6,6 +6,8 @@
 
 fs_driver_t *supported[] = {
   0, // unknown
+  0, // native
+  0, // std
   &ext2_driver,
   0, // fat16
   0, // fat 32
