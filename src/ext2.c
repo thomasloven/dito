@@ -159,7 +159,7 @@ uint32_t ext2_alloc_block(fs_t *fs, unsigned int group)
     goto error;
 
   // Allocate a block
-  unsigned int i = 0;
+  unsigned int i = 4 + data->superblock->inodes_per_group*sizeof(ext2_inode_t)/ext2_blocksize(fs) + 1;
   while(block_bitmap[i/0x8]&(0x1<<(i&0x7)) && i < data->superblock->blocks_per_group)
     i++;
   if(i == data->superblock->blocks_per_group)
@@ -375,7 +375,7 @@ int ext2_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t o
   uint32_t start_block = offset/ext2_blocksize(fs);
   size_t block_offset = offset%ext2_blocksize(fs);
   int num_blocks = length/ext2_blocksize(fs);
-  if(length%ext2_blocksize(fs))
+  if((length+block_offset)%ext2_blocksize(fs))
     num_blocks++;
 
   
@@ -384,7 +384,7 @@ int ext2_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t o
   
   void *b = buff = malloc(num_blocks*ext2_blocksize(fs));
   unsigned int i = start_block;
-  while(i <= start_block + num_blocks && block_list[i])
+  while(i < start_block + num_blocks && block_list[i])
   {
     ext2_readblocks(fs, b, block_list[i], 1);
     b = (void *)((size_t)b + ext2_blocksize(fs));
@@ -433,7 +433,7 @@ int ext2_write(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t 
   uint32_t start_block = offset/ext2_blocksize(fs);
   size_t block_offset = offset%ext2_blocksize(fs);
   int num_blocks = length/ext2_blocksize(fs);
-  if(length%ext2_blocksize(fs))
+  if((length+block_offset)%ext2_blocksize(fs))
     num_blocks++;
 
   block_list = ext2_get_blocks(fs, inode);
@@ -453,7 +453,7 @@ int ext2_write(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t 
   i++;
   b = (void *)((size_t)b + ext2_blocksize(fs));
   // Write rest from ordinary buffer
-  while(i <= start_block + num_blocks && block_list[i])
+  while(i < start_block + num_blocks && block_list[i])
   {
     ext2_writeblocks(fs, b, block_list[i], 1);
     b = (void *)((size_t)b + ext2_blocksize(fs));
