@@ -1,7 +1,8 @@
-#include <ext2.h>
-#include <fs.h>
+#include "ext2.h"
+#include "fs.h"
+#include "image.h"
+#include <dito.h>
 #include <stdlib.h>
-#include <image.h>
 #include <string.h>
 #include <stdint.h>
 

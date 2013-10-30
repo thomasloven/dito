@@ -1,6 +1,7 @@
 #include "minunit.h"
 #include <errno.h>
-#include <fs.h>
+#include "../src/fs.h"
+#include <dito.h>
 #include <unistd.h>
 
 char *test_fs_load()

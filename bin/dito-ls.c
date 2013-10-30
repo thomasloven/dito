@@ -1,7 +1,5 @@
 #include <stdio.h>
-#include <image.h>
-#include <partition.h>
-#include <fs.h>
+#include <dito.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>

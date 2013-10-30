@@ -1,5 +1,6 @@
 #include "minunit.h"
-#include <partition.h>
+#include "../src/partition.h"
+#include <dito.h>
 #include <errno.h>
 #include <unistd.h>
 

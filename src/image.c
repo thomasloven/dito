@@ -1,4 +1,5 @@
 #include "image.h"
+#include <dito.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

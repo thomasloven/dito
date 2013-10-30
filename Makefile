@@ -11,7 +11,7 @@ PROGRAMS=$(patsubst %.c,%,$(PROGRAMS_SRC))
 TEST_SRC=$(wildcard tests/*_tests.c)
 TESTS=$(patsubst %.c,%,$(TEST_SRC))
 
-TARGET=build/libimtools.a
+TARGET=build/libdito.a
 SO_TARGET=$(patsubst %.a,%.so,$(TARGET))
 
 

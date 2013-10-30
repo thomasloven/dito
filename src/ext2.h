@@ -2,7 +2,8 @@
 
 #include <time.h>
 #include <stdint.h>
-#include <fs.h>
+#include <dito.h>
+#include "fs.h"
 
 typedef struct // Superblock
 {

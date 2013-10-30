@@ -1,5 +1,6 @@
-#include <partition.h>
-#include <image.h>
+#include "partition.h"
+#include "image.h"
+#include <dito.h>
 #include <stdlib.h>
 #include <stdio.h>
 

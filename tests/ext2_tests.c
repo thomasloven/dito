@@ -1,8 +1,9 @@
 #include "minunit.h"
+#include <dito.h>
 #include <errno.h>
-#include <ext2.h>
+#include "../src/ext2.h"
 #include <time.h>
-#include <fs.h>
+#include "../src/fs.h"
 #include <unistd.h>
 
 char *test_ext2_load()

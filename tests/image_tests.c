@@ -1,5 +1,6 @@
 #include "minunit.h"
-#include <image.h>
+#include "../src/image.h"
+#include <dito.h>
 #include <errno.h>
 #include <unistd.h>
 
