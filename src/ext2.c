@@ -575,7 +575,7 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
   ino->mtime = st->mtime;
   ino->gid = 0;
   ino->link_count = 0;
-  ino->disk_sectors = blocks_needed*ext2_blocksize(fs)/BLOCK_SIZE;
+  ino->disk_sectors = (blocks_needed+1)*ext2_blocksize(fs)/BLOCK_SIZE;
   ino->flags = 0;
   ino->osval1 = 0;
   ino->indirect = 0;
@@ -679,9 +679,10 @@ int ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
     next = (void *)((size_t)current + current->record_length);
   }
   // New direntry is right after the last one
-  next = (void *)((size_t)current->name + current->name_length + 1);
-  // And shorten the last one
-  current->record_length = (size_t)next - (size_t)current;
+  current->record_length = ((size_t)current->name + current->name_length + 1 - (size_t)current);
+  if(current->record_length < 12) current->record_length = 12;
+  current->record_length += (current->record_length%4)?4-current->record_length%4:0;
+  next = (void *)((size_t)current + current->record_length);
 
   next->inode = ino;
   strcpy(next->name, name);
@@ -694,12 +695,12 @@ int ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
     (((iino->type & EXT2_REGULAR) == EXT2_REGULAR)?EXT2_DIR_REGULAR:0) + \
     (((iino->type & EXT2_SYMLINK) == EXT2_SYMLINK)?EXT2_DIR_SYMLINK:0) + \
     (((iino->type & EXT2_SOCKET) == EXT2_SOCKET)?EXT2_DIR_SOCKET:0);
-  next->record_length = (size_t)next->name + next->name_length + 1;
+  next->record_length = (size_t)next->name + next->name_length + 1 - (size_t)next;
   if(next->record_length < 12)
     next->record_length = 12;
 
   // Lengthen last entry
-  if(((size_t)next + next->record_length) > dino->size_low)
+  if(((size_t)next + next->record_length - (size_t)di) > dino->size_low)
   {
     // Increase size of directory
     uint32_t *blocks = ext2_get_blocks(fs, dino);
