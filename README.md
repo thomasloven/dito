@@ -9,7 +9,7 @@ Installing
 	make
 	make install
 
-*With Homebrew*
+**With Homebrew**
 
 	make
 	PREFIX=/usr/local/Cellar/dito/0.1.0 make install
@@ -28,7 +28,7 @@ implemented option.
 `partition` is the partition number you want. 1-4.
 `path` is the path to the file from the root of the filesystem.
 
-*Examples*
+**Examples**
 
 	ext2:imagefile.img:1:/boot/grub.conf
 
@@ -39,19 +39,19 @@ The tools
 ---------
 The following tools are implemented this far. Support for ext2 only.
 
-*dito-ls*
+**dito-ls**
 
 	dito-ls [-l] <path>
 
 Show directory listing.
 
-*dito-mkdir*
+**dito-mkdir**
 
 	dito-mkdir <path>
 
 Creates an empty directory.
 
-*dito-cp*
+**dito-cp**
 
 	dito-cp <source_path> <target_path>
 
