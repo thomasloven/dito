@@ -108,7 +108,7 @@ char *test_ext2_touch()
   ext2_inode_t ino;
   ext2_read_inode(fs, &ino, i);
   
-  uint32_t *blcks = ext2_get_blocks(fs, &ino);
+  uint32_t *blcks = ext2_get_blocks(fs, &ino, 0);
   int k = 0;
   while(blcks[k])
   {

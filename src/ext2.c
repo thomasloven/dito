@@ -186,7 +186,7 @@ error:
   return 0;
 }
 
-size_t ext2_get_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_list, size_t bl_index, size_t length)
+size_t ext2_get_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_list, size_t bl_index, size_t length, uint32_t *indirects)
 {
   if(!fs)
     return 0;
@@ -205,19 +205,24 @@ size_t ext2_get_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_li
       return 0;
     while(i < ext2_blocksize(fs)/sizeof(uint32_t) && bl_index < length)
     {
-      size_t read2 = ext2_get_indirect(fs, blocks[i], level-1, block_list, bl_index, length);
+      size_t read2 = ext2_get_indirect(fs, blocks[i], level-1, block_list, bl_index, length, indirects);
       if(read2 == 0)
         return 0;
       bl_index += read2;
       read += read2;
       i++;
     }
+    if(indirects)
+    {
+      indirects[indirects[0]] = block;
+      indirects[0]++;
+    }
     free(blocks);
     return read;
   }
 }
 
-  size_t ext2_set_indirect(fs_t *fs, uint32_t *block, int level, uint32_t *block_list, size_t bl_index, int group)
+  size_t ext2_set_indirect(fs_t *fs, uint32_t *block, int level, uint32_t *block_list, size_t bl_index, int group, uint32_t *indirects)
 {
   if(!fs)
     return 0;
@@ -234,14 +239,20 @@ size_t ext2_get_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_li
     size_t set = 0;
     while(i < ext2_blocksize(fs)/sizeof(uint32_t) && block_list[bl_index])
     {
-      size_t set_count = ext2_set_indirect(fs, &blocks[i], level-1, block_list, bl_index, group);
+      size_t set_count = ext2_set_indirect(fs, &blocks[i], level-1, block_list, bl_index, group, indirects);
       if(set_count == 0)
         return 0;
       bl_index += set_count;
       set += set_count;
       i++;
     }
-    *block = ext2_alloc_block(fs, group);
+    if(indirects)
+    {
+      indirects[0]++;
+      *block = indirects[indirects[0]];
+    } else {
+      *block = ext2_alloc_block(fs, group);
+    }
     if(!ext2_writeblocks(fs, blocks, *block, 1))
       return 0;
     free(blocks);
@@ -249,7 +260,7 @@ size_t ext2_get_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_li
   }
 }
 
-uint32_t *ext2_get_blocks(fs_t *fs, ext2_inode_t *node)
+uint32_t *ext2_get_blocks(fs_t *fs, ext2_inode_t *node, uint32_t *indirects)
 {
   if(!fs)
     return 0;
@@ -264,17 +275,17 @@ uint32_t *ext2_get_blocks(fs_t *fs, ext2_inode_t *node)
   for(i = 0; i < num_blocks && i < 12; i++)
     block_list[i] = node->direct[i];
   if(i < num_blocks)
-    i += ext2_get_indirect(fs, node->indirect, 1, block_list, i, num_blocks);
+    i += ext2_get_indirect(fs, node->indirect, 1, block_list, i, num_blocks, indirects);
   if(i < num_blocks)
-    i += ext2_get_indirect(fs, node->dindirect, 2, block_list, i, num_blocks);
+    i += ext2_get_indirect(fs, node->dindirect, 2, block_list, i, num_blocks, indirects);
   if(i < num_blocks)
-    i += ext2_get_indirect(fs, node->tindirect, 3, block_list, i, num_blocks);
+    i += ext2_get_indirect(fs, node->tindirect, 3, block_list, i, num_blocks, indirects);
 
   block_list[i] = 0;
   return block_list;
 }
 
-uint32_t ext2_set_blocks(fs_t *fs, ext2_inode_t *node, uint32_t *blocks, int group)
+uint32_t ext2_set_blocks(fs_t *fs, ext2_inode_t *node, uint32_t *blocks, int group, uint32_t *indirects)
 {
   if(!fs)
     return 0;
@@ -286,11 +297,11 @@ uint32_t ext2_set_blocks(fs_t *fs, ext2_inode_t *node, uint32_t *blocks, int gro
     node->direct[i] = blocks[i];
   }
   if(blocks[i])
-    i += ext2_set_indirect(fs, &node->indirect, 1, blocks, i, group);
+    i += ext2_set_indirect(fs, &node->indirect, 1, blocks, i, group, indirects);
   if(blocks[i])
-    i += ext2_set_indirect(fs, &node->dindirect, 2, blocks, i, group);
+    i += ext2_set_indirect(fs, &node->dindirect, 2, blocks, i, group, indirects);
   if(blocks[i])
-    i += ext2_set_indirect(fs, &node->tindirect, 3, blocks, i, group);
+    i += ext2_set_indirect(fs, &node->tindirect, 3, blocks, i, group, indirects);
 
   if(blocks[i])
     return 0;
@@ -333,7 +344,7 @@ size_t ext2_read_data(fs_t *fs, ext2_inode_t *node, void *buffer, size_t length)
 
   if(length > node->size_low)
     length = node->size_low;
-  uint32_t *block_list = ext2_get_blocks(fs, node);
+  uint32_t *block_list = ext2_get_blocks(fs, node, 0);
 
   int i = 0;
   size_t readcount = 0;
@@ -381,7 +392,7 @@ int ext2_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t o
     num_blocks++;
 
   
-  block_list = ext2_get_blocks(fs, inode);
+  block_list = ext2_get_blocks(fs, inode, 0);
 
   
   void *b = buff = malloc(num_blocks*ext2_blocksize(fs));
@@ -438,7 +449,7 @@ int ext2_write(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t 
   if((length+block_offset)%ext2_blocksize(fs))
     num_blocks++;
 
-  block_list = ext2_get_blocks(fs, inode);
+  block_list = ext2_get_blocks(fs, inode, 0);
 
   void *b = buff = malloc(num_blocks*ext2_blocksize(fs));
 
@@ -597,7 +608,7 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
     blocks[i] = ext2_alloc_block(fs, group);
   }
   blocks[i] = 0;
-  if(ext2_set_blocks(fs, ino, blocks, group) != blocks_needed)
+  if(ext2_set_blocks(fs, ino, blocks, group, 0) != blocks_needed)
     goto error;
 
   //Write everything
@@ -703,7 +714,7 @@ int ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
   if(((size_t)next + next->record_length - (size_t)di) > dino->size_low)
   {
     // Increase size of directory
-    uint32_t *blocks = ext2_get_blocks(fs, dino);
+    uint32_t *blocks = ext2_get_blocks(fs, dino, 0);
     uint32_t *blocks2 = calloc(dino->size_low/ext2_blocksize(fs) + 1, sizeof(uint32_t));
     unsigned int i = 0;
     for(i = 0; i < dino->size_low/ext2_blocksize(fs); i++)
@@ -711,7 +722,7 @@ int ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
       blocks2[i] = blocks[i];
     }
     blocks2[i] = ext2_alloc_block(fs, ino/data->superblock->inodes_per_group);
-    ext2_set_blocks(fs, dino, blocks2, ino/data->superblock->inodes_per_group);
+    ext2_set_blocks(fs, dino, blocks2, ino/data->superblock->inodes_per_group, 0);
     free(blocks);
     free(blocks2);
     dino->size_low += ext2_blocksize(fs);
