@@ -1,6 +1,7 @@
 CFLAGS=-g -O2 -Wall -Wextra -Isrc -DNDEBUG $(OPTFLAGS)
 LIBS=-ldl $(OPTLIBS)
-PREFIX?=/usr/local/
+PREFIX?=/usr/local
+BINPREFIX?=dito-
 
 SOURCES=$(wildcard src/**/*.c src/*.c)
 OBJECTS=$(patsubst %.c,%.o,$(SOURCES))
@@ -43,6 +44,16 @@ $(TESTS): $(TARGET)
 
 valgrind:
 	VALGRIND="valgrind --leak-check=full --suppressions=valgrind_osx.supp --log-file=/tmp/valgrind-%p.log" $(MAKE)
+
+install: all
+	install -d $(DESTDIR)/$(PREFIX)/lib/
+	install $(TARGET) $(DESTDIR)/$(PREFIX)/lib/
+	install -d $(DESTDIR)/$(PREFIX)/include
+	install src/dito.h $(DESTDIR)/$(PREFIX)/lib/
+	install -d $(DESTDIR)/$(PREFIX)/bin/
+	install bin/ls $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)ls
+	install bin/mkdir $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)mkdir
+	install bin/cp $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)cp
 
 clean:
 	rm -rf build $(OBJECTS) $(TESTS) $(PROGRAMS)

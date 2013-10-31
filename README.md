@@ -3,6 +3,18 @@ DITo - Disk Image Tools
 
 A c static library and a set of tools to handle disk image files of various file formats.
 
+Installing
+----------
+
+	make
+	make install
+
+*With Homebrew*
+
+	make
+	PREFIX=/usr/local/Cellar/dito/0.1.0 make install
+	brew link dito
+
 Path format
 -----------
 The tools may require a path to a file or directory in an image file as
