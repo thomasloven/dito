@@ -11,7 +11,7 @@ char *test_fs_load()
 
 char *test_fs_find()
 {
-  size_t sizes[] = {10000, 0, 0, 0};
+  size_t sizes[] = {10000000, 0, 0, 0};
   image_t *im = image_new("tests/testimg2.img", sizes, 0);
   partition_t *p = partition_open(im, 0);
   fs_t *fs = fs_create(p, ext2);

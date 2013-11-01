@@ -55,6 +55,12 @@ image_t *image_new(char *filename, size_t sizes[4], int boot)
   image->filename = strdup(filename);
   image->file = fopen(filename, "w+");
 
+  size_t i = 0;
+  for(i = 0; i < 4; i++)
+  {
+    sizes[i] = sizes[i] + ((sizes[i]%BLOCK_SIZE)?1:0);
+    sizes[i] = sizes[i] - sizes[i]%BLOCK_SIZE;
+  }
   size_t size = sizes[0]+sizes[1]+sizes[2]+sizes[3];
 
   CHS_t chs = max_CHS_from_size(size);
@@ -63,13 +69,11 @@ image_t *image_new(char *filename, size_t sizes[4], int boot)
   image->heads = chs.H;
   image->sectors = chs.S;
 
-  size_t i = 0, pos=image->sectors*BLOCK_SIZE;
+  size_t pos=image->sectors*BLOCK_SIZE;
   for(i = 0; i < 4; i++)
   {
-    size_t round_size = (sizes[i]+(sizes[i]%BLOCK_SIZE!=0)*BLOCK_SIZE);
-    round_size = round_size - round_size%BLOCK_SIZE;
     size_t start_LBA = pos/BLOCK_SIZE;
-    size_t end_LBA = start_LBA + round_size/BLOCK_SIZE;
+    size_t end_LBA = start_LBA + sizes[i]/BLOCK_SIZE;
     CHS_t start = CHS_from_LBA(image, start_LBA);
     CHS_t end = CHS_from_LBA(image, end_LBA);
 
@@ -83,15 +87,15 @@ image_t *image_new(char *filename, size_t sizes[4], int boot)
     image->mbr[i].end_sector = ((end.S & 0x3F) << 2) | ((end.C & 0x300) >> 8);
     image->mbr[i].end_cylinder = (end.C & 0xFF);
     image->mbr[i].start_LBA = start_LBA;
-    image->mbr[i].num_sectors = round_size/BLOCK_SIZE;
+    image->mbr[i].num_sectors = sizes[i]/BLOCK_SIZE;
 
-    pos += round_size;
+    pos += sizes[i];
   }
 
   image->mbr[boot].boot_indicator = 0x80;
   image->mbr_dirty = 1;
 
-  ftruncate(fileno(image->file), size);
+  ftruncate(fileno(image->file), size + image->sectors*BLOCK_SIZE);
 
   return image;
 

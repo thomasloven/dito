@@ -854,6 +854,7 @@ int ext2_mkdir(struct fs_st *fs, INODE parent, const char *name)
   if(!name)
     return 1;
 
+  ext2_data_t *data = fs->data;
 
   fstat_t st;
 
@@ -876,15 +877,21 @@ int ext2_mkdir(struct fs_st *fs, INODE parent, const char *name)
   ext2_write_inode(fs, ino, child);
   free(ino);
 
+  // Increase directory count
+  uint32_t group = child / data->superblock->inodes_per_group;
+  data->groups[group].num_dir++;
+  data->groups_dirty = 1;
+
+
   // Link .
-  ext2_dirinfo_t *data = calloc(1, ext2_blocksize(fs));
-  data->inode = child;
-  data->record_length = ext2_blocksize(fs);
-  data->name_length = 1;
-  data->file_type = EXT2_DIR_DIR;
-  strcpy(data->name, ".");
-  fs_write(fs, child, data, ext2_blocksize(fs), 0);
-  free(data);
+  ext2_dirinfo_t *di = calloc(1, ext2_blocksize(fs));
+  di->inode = child;
+  di->record_length = ext2_blocksize(fs);
+  di->name_length = 1;
+  di->file_type = EXT2_DIR_DIR;
+  strcpy(di->name, ".");
+  fs_write(fs, child, di, ext2_blocksize(fs), 0);
+  free(di);
 
   // Link ..
   fs_link(fs, parent, child, "..");
@@ -931,6 +938,178 @@ void *ext2_hook_load(struct fs_st *fs)
 
 void *ext2_hook_create(struct fs_st *fs)
 {
+
+  if(!fs)
+    return 0;
+
+  ext2_data_t *data = fs->data = malloc(sizeof(ext2_data_t));
+
+  ext2_superblock_t *s = data->superblock = calloc(1, EXT2_SUPERBLOCK_SIZE);
+
+  size_t max_size = fs->p->length * BLOCK_SIZE;
+  uint32_t block_size_log = 0; // 1024 byte blocks
+  uint32_t block_size = 1024 << block_size_log;
+  max_size -= max_size % block_size;
+  uint32_t max_blocks = max_size / block_size;
+  uint32_t blocks_per_group = 8*block_size;
+  uint32_t num_groups = max_blocks / blocks_per_group + ((max_blocks % blocks_per_group)?1:0);
+  uint32_t last_group_blocks = max_blocks - blocks_per_group*(num_groups-1);
+
+  uint32_t blocks_per_inode = 8;
+  uint32_t inodes_per_group = blocks_per_group / blocks_per_inode;
+
+  uint32_t inode_table_blocks = inodes_per_group*sizeof(ext2_inode_t)/block_size;
+  if(last_group_blocks <= inode_table_blocks + 4)
+  {
+    // Throw away the last group if the inode table won't fit.
+    max_blocks -= last_group_blocks;
+    num_groups--;
+    last_group_blocks = blocks_per_group;
+  }
+
+  uint32_t total_inodes = inodes_per_group*num_groups;
+  uint32_t first_inode = 11;
+
+
+  // Setup superblock
+  s->num_inodes = total_inodes;
+  s->num_blocks = max_blocks;
+  s->num_reserved_blocks = 0;
+  s->num_free_blocks = max_blocks;
+  s->num_free_inodes = total_inodes - first_inode;
+  s->superblock_block = 1;
+  s->block_size = block_size_log;
+  s->fragment_size = block_size_log;
+  s->blocks_per_group = blocks_per_group;
+  s->fragments_per_group = blocks_per_group;
+  s->inodes_per_group = inodes_per_group;
+  s->last_mount_time = 0;
+  s->last_write_time = time(0);
+  s->mount_count = 0;
+  s->max_mount_count = 0xFFFF;
+  s->signature = 0xEF53;
+  s->fs_state = 1;
+  s->error_method = 1;
+  s->version_minor = 0;
+  s->last_check_time = time(0);
+  s->check_interval = 0;
+  s->operating_system = 0;
+  s->version_major = 1;
+  s->uid = 0;
+  s->gid = 0;
+  s->first_inode = first_inode;
+  s->inode_size = 128;
+  s->superblock_group = 0;
+  s->optional_features = 0x0008;
+  s->required_features = 0x0002;
+  s->readwrite_features = 0x0000;
+
+  FILE *fp = fopen("/dev/urandom",  "r");
+  fread(s->fs_id, 16, 1, fp);
+  fclose(fp);
+
+  sprintf(s->volume_name, "ext2");
+  s->last_path[0] = '/';
+
+  data->superblock_dirty = 1;
+
+
+  // Setup block group descriptors
+  ext2_groupd_t *g = data->groups = calloc(num_groups, sizeof(ext2_groupd_t));
+  data->num_groups = num_groups;
+
+  uint32_t group_table_blocks = num_groups*sizeof(ext2_groupd_t);
+  group_table_blocks = group_table_blocks/block_size + \
+                       ((group_table_blocks%block_size)?1:0);
+
+  uint8_t *block_bitmap = calloc(1, block_size);
+  uint8_t *inode_bitmap = calloc(1, block_size);
+  ext2_inode_t *inode_table = calloc(inode_table_blocks, block_size);
+
+  // Mark used blocks as used for each group
+  uint32_t i;
+  uint32_t used_blocks = 1 + group_table_blocks + 1 + 1 + inode_table_blocks;
+  for(i = 0; i < used_blocks; i++)
+  {
+    block_bitmap[i/8] |= 1 << (i&7);
+  }
+  printf("Used: %d\n", used_blocks);
+  printf("Blocks per group: %d\n", blocks_per_group);
+
+  /* Superblock - 1 block */
+  /* Block Group descriptor table - n blocks */
+  /* Block bitmap - 1 block */
+  /* Inode bitmap - 1 block */
+  /* Inode table - m blocks */
+
+  // Setup block group descriptor table
+  for(i = 0; i < num_groups; i++)
+  {
+    uint32_t start_block = s->superblock_block + i*blocks_per_group;
+    g[i].block_bitmap = start_block + 1 + group_table_blocks;
+    g[i].inode_bitmap = g[i].block_bitmap + 1;
+    g[i].inode_table = g[i].inode_bitmap + 1;
+    g[i].unallocated_blocks = blocks_per_group - used_blocks;
+    g[i].unallocated_inodes = inodes_per_group;
+    g[i].num_dir = 0;
+
+    // Write bitmaps and inode table to each group
+    ext2_writeblocks(fs, block_bitmap, g[i].block_bitmap, 1);
+    ext2_writeblocks(fs, inode_bitmap, g[i].inode_bitmap, 1);
+    ext2_writeblocks(fs, inode_table, g[i].inode_table, inode_table_blocks);
+  }
+  data->groups_dirty = 1;
+
+  // Pad end of last block bitmap
+  for(i = last_group_blocks-1; i < blocks_per_group; i++)
+  {
+    block_bitmap[i/8] |= 1 << (i&7);
+  }
+  ext2_writeblocks(fs, block_bitmap, g[num_groups-1].block_bitmap, 1);
+  g[num_groups-1].unallocated_blocks -= blocks_per_group-(last_group_blocks-1);
+
+  // Fill start of first inode bitmap
+  for(i = 0; i < first_inode-1; i++)
+  {
+    inode_bitmap[i/8] |= 1 <<(i&7);
+  }
+  ext2_writeblocks(fs, inode_bitmap, g[0].inode_bitmap, 1);
+  g[0].unallocated_inodes -= first_inode-1;
+
+  // Create root directory
+  INODE root = 2;
+  // Build inode
+  ext2_inode_t *root_ino = calloc(1, sizeof(ext2_inode_t));
+  root_ino->type = EXT2_DIR | 0755;
+  root_ino->size_low = ext2_blocksize(fs);
+  root_ino->atime = 0;
+  root_ino->ctime = time(0);
+  root_ino->mtime = time(0);
+  root_ino->disk_sectors = ext2_blocksize(fs)/BLOCK_SIZE;
+  root_ino->link_count = 1;
+  root_ino->direct[0] = ext2_alloc_block(fs, 0);
+
+  ext2_write_inode(fs, root_ino, root);
+  
+  // Create directory listing and add /.
+  ext2_dirinfo_t *di = calloc(1, ext2_blocksize(fs));
+  di->inode = root;
+  di->record_length = ext2_blocksize(fs);
+  di->name_length = 1;
+  di->file_type = EXT2_DIR_DIR;
+  strcpy(di->name, ".");
+
+  ext2_writeblocks(fs, di, root_ino->direct[0], 1);
+  free(di);
+  g[0].num_dir = 1;
+  
+  // Add /..
+  fs_link(fs, root, root, "..");
+
+  // Add /lost+found
+  fs_mkdir(fs, root, "lost+found");
+
+  // Done
   return 0;
 }
 
