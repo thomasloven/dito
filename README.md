@@ -68,9 +68,9 @@ Either could also be replaces by a dash `-` to read from or write to
 stdin or stdout respectively.
 Example:
 
-	dito-cp ext2:image.img:1:/essay.txt | wc -l
+	dito-cp ext2:image.img:1:/essay.txt - | wc -l
 
-	ls -l | dito-cp ext2:image.img:1:/directory_listing.txt
+	ls -l | dito-cp - ext2:image.img:1:/directory_listing.txt
 
 Important note
 --------------
