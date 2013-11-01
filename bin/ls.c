@@ -5,101 +5,181 @@
 #include <time.h>
 #include <fcntl.h>
 
+typedef struct path_st
+{
+  fs_type_t type;
+  char *image;
+  int partition;
+  char *path;
+} path_t;
+
+path_t *parse_path(const char *input)
+{
+  path_t *path = malloc(sizeof(path_t));
+  path->type = 0;
+  path->image = 0;
+  path->partition = -1;
+  path->path = 0;
+  int i;
+  char *str = strdup(input);
+  char *s = str;
+
+  // Count number of :
+  for(i = 0; s[i]; s[i]==':'?i++:s++);
+  if(i == 0)
+  {
+    // File is not in an image
+    if(!strcmp(str, "-"))
+    {
+      // File is stdin or stdout
+      path->type = std;
+    } else {
+      // File is on disk
+      path->type = native;
+      path->path = strdup(str);
+    }
+    free(str);
+    return path;
+  }
+  if(i != 3)
+  {
+    // Path is invalid
+    free(str);
+    return 0;
+  }
+
+  // File is in an image
+  i = 0;
+
+  // Parse filesystem type
+  s = &str[i];
+  while(str[i] != ':') i++;
+  str[i] = '\0';
+  if(!strcmp(s, "ext2")) path->type = ext2;
+  else if(!strcmp(s, "fat16")) path->type = fat16;
+  else if(!strcmp(s, "fat32")) path->type = fat32;
+  else if(!strcmp(s, "sfs")) path->type = sfs;
+  else if(!strcmp(s, "ntfs")) path->type = ntfs;
+  else if(!strcmp(s, "hfs")) path->type = hfs;
+  else path->type = unknown;
+
+  // Parse image filename
+  i++;
+  s = &str[i];
+  while(str[i] != ':') i++;
+  str[i] = '\0';
+  path->image = strdup(s);
+
+  // Parse partition
+  i++;
+  s = &str[i];
+  if(s[0]>= '1' && s[0]<= '4')
+  {
+    path->partition = (int)(s[0]-'1');
+  } else {
+    // Bad partition number
+    free(str);
+    return 0;
+  }
+  
+  //Parse path within image
+  i+=2;
+  s = &str[i];
+  path->path = strdup(s);
+
+  free(str);
+  return path;
+
+}
+
+void free_path(path_t *p)
+{
+  if(p->image)
+    free(p->image);
+  if(p->path)
+    free(p->path);
+  free(p);
+}
+
 void usage(const char *argv[])
 {
-  printf("usage: %s image_file:partition [-l] [path]\n", argv[0]);
+  printf("usage: %s [-l] type:image_file:partition:path\n", argv[0]);
 }
 
 int main(int argc, const char *argv[])
 {
   int retval = 0;
-  char *image_name = 0;
-  char *path = 0;
-  int partition = -1;
   int detailed = 0;
+  char *pth = 0;
+  path_t *path = 0;
   image_t *im = 0;
   partition_t *p = 0;
   fs_t *fs = 0;
   dirent_t *de = 0;
   fstat_t *st = 0;
-  if(argc < 2 || argc > 4)
+
+  if(argc < 2 || argc > 3)
   {
+    usage(argv);
+      printf("argc= fel\n");
+    retval = 1;
+    goto end;
+  }
+  if(argc == 3)
+  {
+    if(!strcmp(argv[1], "-l"))
+    {
+      detailed = 1;
+      pth = strdup(argv[2]);
+    } else {
+      usage(argv);
+      printf("argc=3\n");
+      retval = 1;
+      goto end;
+    }
+  } else {
+    pth = strdup(argv[1]);
+  }
+  if(!(path = parse_path(pth)))
+  {
+      printf("parse\n");
     usage(argv);
     retval = 1;
     goto end;
   }
-  if(argc == 2)
-  {
-    path = strdup("/");
-  }
-  if(argc == 3)
-  {
-    if(strcmp(argv[2], "-l"))
-    {
-      path = strdup(argv[2]);
-    } else {
-      detailed = 1;
-      path = strdup("/");
-    }
-  }
-  if(argc == 4)
-  {
-    if(strcmp(argv[2], "-l"))
-    {
-      usage(argv);
-      goto end;
-    } else {
-      detailed = 1;
-      path = strdup(argv[3]);
-    }
-  }
 
-
-  image_name = strdup(argv[1]);
-  image_name[strlen(image_name)-2] = '\0';
-  switch(argv[1][strlen(argv[1])-1])
+  if(!(im = image_load(path->image)))
   {
-    case '4':
-      partition++;
-    case '3':
-      partition++;
-    case '2':
-      partition++;
-    case '1':
-      partition++;
-      break;
-    default:
-      retval = 1;
-      goto end;
-  }
-    
-  im = image_load(image_name);
-  if(!im)
-  {
-    fprintf(stderr, "%s: Image file could not load\n", argv[0]);
+    fprintf(stderr, "%s: %s: Could not open image file\n", argv[0], pth);
     retval = 1;
     goto end;
   }
-  p = partition_open(im, partition);
-  if(!p)
+  if(!(p = partition_open(im, path->partition)))
   {
-    fprintf(stderr, "%s: Partition could not be read\n", argv[0]);
-    retval = 0;
+    fprintf(stderr, "%s: %s: Could not open partition\n", argv[0], pth);
+    retval = 1;
     goto end;
   }
-  fs = fs_load(p, ext2);
+  if(!(fs = fs_load(p, path->type)))
+  {
+    fprintf(stderr, "%s: %s: Could not load filesystem\n", argv[0], pth);
+    retval = 1;
+    goto end;
+  }
 
-  INODE dir = fs_find(fs, path);
+    
+
+  INODE dir = fs_find(fs, path->path);
   if(!dir)
   {
-    fprintf(stderr, "%s: %s: No such file or directory\n", argv[0], path);
+    fprintf(stderr, "%s: %s: No such file or directory\n", argv[0], path->path);
     retval = 1;
     goto end;
   }
   st = fs_fstat(fs, dir);
   if((st->mode & S_DIR) != S_DIR)
   {
-    fprintf(stderr, "%s: %s: Not a directory\n", argv[0], path);
+    fprintf(stderr, "%s: %s: Not a directory\n", argv[0], path->path);
     retval = 1;
     goto end;
   }
@@ -150,9 +230,5 @@ end:
   {
     image_close(im);
   }
-  if(image_name)
-    free(image_name);
-  if(path)
-    free(path);
   return retval;
 }
