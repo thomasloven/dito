@@ -1,0 +1,1 @@
+Link updates size of directories if needed, but does not recalculate the i_block field of the inode.
