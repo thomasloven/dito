@@ -186,6 +186,55 @@ error:
   return 0;
 }
 
+uint32_t ext2_count_indirect(fs_t *fs, size_t size)
+{
+  size_t num_blocks = size / ext2_blocksize(fs);
+  uint32_t blocks_per_indirect = ext2_blocksize(fs)/sizeof(uint32_t);
+  uint32_t block = 12;
+  uint32_t ret = 0;
+
+  // Indirect
+  if(block < num_blocks)
+  {
+    ret++;
+    block += blocks_per_indirect;
+  }
+
+  // Doubly indirect
+  if(block < num_blocks)
+  {
+    ret++;
+    uint32_t i = 0;
+    while(i < blocks_per_indirect && block < num_blocks)
+    {
+      ret++;
+      block += blocks_per_indirect;
+      i++;
+    }
+  }
+
+  // Triply indirect
+  if(block < num_blocks)
+  {
+    ret++;
+    uint32_t i = 0;
+    while(i < blocks_per_indirect && block < num_blocks)
+    {
+      ret++;
+      uint32_t j = 0;
+      while(j < blocks_per_indirect && block < num_blocks)
+      {
+        ret ++;
+        block += blocks_per_indirect;
+        j++;
+      }
+      i++;
+    }
+  }
+
+  return ret;
+}
+
 size_t ext2_get_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_list, size_t bl_index, size_t length, uint32_t *indirects)
 {
   if(!fs)
@@ -203,6 +252,11 @@ size_t ext2_get_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_li
     uint32_t *blocks = malloc(ext2_blocksize(fs));
     if(!ext2_readblocks(fs, blocks, block, 1))
       return 0;
+    if(indirects)
+    {
+      indirects[indirects[0]] = block;
+      indirects[0]++;
+    }
     while(i < ext2_blocksize(fs)/sizeof(uint32_t) && bl_index < length)
     {
       size_t read2 = ext2_get_indirect(fs, blocks[i], level-1, block_list, bl_index, length, indirects);
@@ -211,11 +265,6 @@ size_t ext2_get_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_li
       bl_index += read2;
       read += read2;
       i++;
-    }
-    if(indirects)
-    {
-      indirects[indirects[0]] = block;
-      indirects[0]++;
     }
     free(blocks);
     return read;
@@ -236,27 +285,27 @@ size_t ext2_get_indirect(fs_t *fs, uint32_t block, int level, uint32_t *block_li
   } else {
     uint32_t *blocks = malloc(ext2_blocksize(fs));
     size_t i = 0;
-    size_t set = 0;
+    size_t total_set_count = 0;
+    if(indirects)
+    {
+      *block = indirects[indirects[0]];
+      indirects[0]++;
+    } else {
+      *block = ext2_alloc_block(fs, group);
+    }
     while(i < ext2_blocksize(fs)/sizeof(uint32_t) && block_list[bl_index])
     {
       size_t set_count = ext2_set_indirect(fs, &blocks[i], level-1, block_list, bl_index, group, indirects);
       if(set_count == 0)
         return 0;
       bl_index += set_count;
-      set += set_count;
+      total_set_count += set_count;
       i++;
-    }
-    if(indirects)
-    {
-      indirects[0]++;
-      *block = indirects[indirects[0]];
-    } else {
-      *block = ext2_alloc_block(fs, group);
     }
     if(!ext2_writeblocks(fs, blocks, *block, 1))
       return 0;
     free(blocks);
-    return set;
+    return total_set_count;
   }
 }
 
@@ -271,6 +320,8 @@ uint32_t *ext2_get_blocks(fs_t *fs, ext2_inode_t *node, uint32_t *indirects)
 
   uint32_t *block_list = calloc(num_blocks + 1, sizeof(uint32_t));
 
+  if(indirects)
+    indirects[0] = 1;
   int i;
   for(i = 0; i < num_blocks && i < 12; i++)
     block_list[i] = node->direct[i];
@@ -296,6 +347,9 @@ uint32_t ext2_set_blocks(fs_t *fs, ext2_inode_t *node, uint32_t *blocks, int gro
   {
     node->direct[i] = blocks[i];
   }
+
+  if(indirects)
+    indirects[0] = 1;
   if(blocks[i])
     i += ext2_set_indirect(fs, &node->indirect, 1, blocks, i, group, indirects);
   if(blocks[i])
@@ -498,10 +552,12 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
   if(!fs)
     return 0;
   uint32_t *blocks = 0;
+  uint32_t *indirect = 0;
   ext2_data_t *data = fs->data;
   if(!data->superblock->num_free_inodes)
     return 0;
-  size_t blocks_needed = st->size / ext2_blocksize(fs);
+  uint32_t blocks_needed = st->size / ext2_blocksize(fs);
+  uint32_t indirect_blocks = ext2_count_indirect(fs, st->size);
   if(st->size % ext2_blocksize(fs)) blocks_needed++;
 
   if(data->superblock->num_free_blocks < blocks_needed)
@@ -586,7 +642,7 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
   ino->mtime = st->mtime;
   ino->gid = 0;
   ino->link_count = 0;
-  ino->disk_sectors = (blocks_needed+1)*ext2_blocksize(fs)/BLOCK_SIZE;
+  ino->disk_sectors = (blocks_needed+indirect_blocks)*ext2_blocksize(fs)/BLOCK_SIZE;
   ino->flags = 0;
   ino->osval1 = 0;
   ino->indirect = 0;
@@ -602,13 +658,15 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
   }
 
   // Allocate blocks
-  blocks = malloc(sizeof(uint32_t)*(blocks_needed + 1));
+  blocks = calloc((blocks_needed + 1), sizeof(uint32_t));
+  indirect = calloc(indirect_blocks + 1, sizeof(uint32_t));
   for(i = 0; i < blocks_needed; i++)
-  {
     blocks[i] = ext2_alloc_block(fs, group);
+  for(i = 1; i <= indirect_blocks; i++)
+  {
+    indirect[i] = ext2_alloc_block(fs, group);
   }
-  blocks[i] = 0;
-  if(ext2_set_blocks(fs, ino, blocks, group, 0) != blocks_needed)
+  if(ext2_set_blocks(fs, ino, blocks, group, indirect) != blocks_needed)
     goto error;
 
   //Write everything
@@ -621,6 +679,8 @@ error:
     free(inode_bitmap);
   if(blocks)
     free(blocks);
+  if(indirect)
+    free(indirect);
   return 0;
 }
 
@@ -794,7 +854,6 @@ int ext2_mkdir(struct fs_st *fs, INODE parent, const char *name)
   if(!name)
     return 1;
 
-  printf("In mkdir\n");
 
   fstat_t st;
 
