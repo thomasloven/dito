@@ -209,26 +209,22 @@ int main(int argc, const char *argv[])
     }
     i++;
   }
-  printf("\n");
+  if(!detailed) printf("\n");
 
   retval = 0;
 
 end:
+  if(st)
+    free(st);
   if(de)
-  {
     free(de);
-  }
   if(fs)
-  {
     fs_close(fs);
-  }
   if(p)
-  {
     partition_close(p);
-  }
   if(im)
-  {
     image_close(im);
-  }
+  if(path)
+    free_path(path);
   return retval;
 }

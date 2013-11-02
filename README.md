@@ -39,6 +39,12 @@ The tools
 ---------
 The following tools are implemented this far. Support for ext2 only.
 
+**dito-extract**
+
+	dito-extract imagefile:partition output
+
+Extracts one partition from a hard drive image file to a separate file.
+
 **dito-ls**
 
 	dito-ls [-l] <path>
