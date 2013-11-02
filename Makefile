@@ -51,6 +51,9 @@ install: all
 	install -d $(DESTDIR)/$(PREFIX)/include
 	install src/dito.h $(DESTDIR)/$(PREFIX)/lib/
 	install -d $(DESTDIR)/$(PREFIX)/bin/
+	install bin/generate $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)generate
+	install bin/extract $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)extract
+	install bin/format $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)format
 	install bin/ls $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)ls
 	install bin/mkdir $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)mkdir
 	install bin/cp $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)cp
