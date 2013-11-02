@@ -39,6 +39,15 @@ The tools
 ---------
 The following tools are implemented this far. Support for ext2 only.
 
+**dito-generate**
+
+	dito-generate imagefile size1 [size2] [size3] [size4]
+
+Creates a hard drive image file with partition sizes as close to
+size1..4 as possible. Sizes are in bytes but can be given with suffixes
+e.g. 20M to create a partition with size 20 Mb. The first partition is
+set as primary.
+
 **dito-extract**
 
 	dito-extract imagefile:partition output
