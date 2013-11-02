@@ -54,6 +54,16 @@ set as primary.
 
 Extracts one partition from a hard drive image file to a separate file.
 
+**dito-format**
+
+	dito-format imagefile:partition filesystem
+
+Formats a partition of the image file with a filesystem. Valid file
+system choices for now are:
+
+	ext2
+
+
 **dito-ls**
 
 	dito-ls [-l] <path>
