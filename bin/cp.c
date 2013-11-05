@@ -329,9 +329,15 @@ int main(int argc, const char *argv[])
       if((src_st.st_mode & S_IFLNK) == S_IFLNK) st->mode = S_LINK;
       if((src_st.st_mode & S_IFSOCK) == S_IFSOCK) st->mode = S_SOCK;
       st->mode |= src_st.st_mode & 0777;
+    #ifdef __APPLE__
       st->atime = src_st.st_atimespec.tv_sec;
       st->ctime = src_st.st_ctimespec.tv_sec;
       st->mtime = src_st.st_mtimespec.tv_sec;
+    #else
+      st->atime = src_st.st_atime;
+      st->ctime = src_st.st_ctime;
+      st->mtime = src_st.st_mtime;
+    #endif
     }
     dst_f.ino = fs_touchp(dst_fs, st, dst_path->path);
   }
