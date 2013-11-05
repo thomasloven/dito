@@ -51,7 +51,7 @@ image_t *image_new(char *filename, size_t sizes[4], int boot)
   if(boot < 0 || boot > 3)
     return 0;
 
-  image_t *image = malloc(sizeof(image_t));
+  image_t *image = calloc(1,sizeof(image_t));
   image->filename = strdup(filename);
   image->file = fopen(filename, "w+");
 
@@ -96,6 +96,9 @@ image_t *image_new(char *filename, size_t sizes[4], int boot)
   image->mbr_dirty = 1;
 
   ftruncate(fileno(image->file), size + image->sectors*BLOCK_SIZE);
+  fseek(image->file, 0x1fe, SEEK_SET);
+  uint8_t boot_signature[] = {0x55, 0xAA};
+  fwrite(boot_signature, 2, 1, image->file);
 
   return image;
 
