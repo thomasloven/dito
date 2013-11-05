@@ -30,6 +30,7 @@ $(SO_TARGET): $(TARGET) $(OBJECTS)
 	$(CC) -shared -o $@ $(OBJECTS)
 
 $(PROGRAMS): CFLAGS += $(TARGET)
+$(PROGRAMS): $(TARGET)
 
 build:
 	@mkdir -p build
