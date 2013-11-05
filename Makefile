@@ -57,6 +57,7 @@ install: all
 	install bin/ls $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)ls
 	install bin/mkdir $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)mkdir
 	install bin/cp $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)cp
+	install bin/rm $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)rm
 
 clean:
 	rm -rf build $(OBJECTS) $(TESTS) $(PROGRAMS)

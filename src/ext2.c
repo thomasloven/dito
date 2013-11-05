@@ -139,6 +139,28 @@ int ext2_write_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
   return 1;
 }
 
+void ext2_free_block(fs_t *fs, uint32_t block)
+{
+  if(!fs)
+    return;
+  if(!block)
+    return;
+  ext2_data_t *data = fs->data;
+  unsigned int group = block / data->superblock->blocks_per_group;
+
+  uint8_t *block_bitmap = malloc(ext2_blocksize(fs));
+  if(!ext2_readblocks(fs, block_bitmap, data->groups[group].block_bitmap, 1))
+    return;
+  unsigned int i = block % data->superblock->blocks_per_group;
+  i--;
+  block_bitmap[i/0x8] &= ~(1<<(i&0x7));
+  if(!ext2_writeblocks(fs, block_bitmap, data->groups[group].block_bitmap, 1))
+    return;
+  free(block_bitmap);
+  data->groups[group].unallocated_blocks ++;
+  data->groups_dirty = 1;
+}
+
 uint32_t ext2_alloc_block(fs_t *fs, unsigned int group)
 {
   if(!fs)
@@ -802,7 +824,86 @@ int ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
 
 int ext2_unlink(struct fs_st *fs, INODE dir, unsigned int num)
 {
-  return 1;
+  if(!fs)
+    return 1;
+  if(!dir)
+    return 1;
+  ext2_data_t *data = fs->data;
+
+  // Remove from directory listing
+  ext2_inode_t *dir_ino = malloc(sizeof(ext2_inode_t));
+  if(!ext2_read_inode(fs, dir_ino, dir))
+    return 1;
+
+  ext2_dirinfo_t *buffer = malloc(dir_ino->size_low);
+  if(!ext2_read_data(fs, dir_ino, buffer, dir_ino->size_low))
+    return 1;
+
+  ext2_dirinfo_t *p, *di = buffer;
+  while(num && (size_t)di < ((size_t)buffer + dir_ino->size_low))
+  {
+    p = di;
+    di = (ext2_dirinfo_t *)((size_t)di + di->record_length);
+    num--;
+  }
+
+  uint32_t child = di->inode;
+
+  p->record_length += di->record_length;
+  ext2_write(fs, dir, buffer, dir_ino->size_low, 0);
+
+  free(buffer);
+  free(dir_ino);
+
+  // Decrease link count
+  ext2_inode_t *child_ino = malloc(sizeof(ext2_inode_t));
+  if(!ext2_read_inode(fs, child_ino, child))
+    return 1;
+  
+  child_ino->link_count --;
+  if(child_ino->link_count < 1)
+  {
+    // Delete inode
+
+    // Mark as deleted
+    child_ino->dtime = time(0);
+    
+    // Free blocks and inode if link count is zero
+    unsigned int indirect_num = ext2_count_indirect(fs, child_ino->size_low);
+    uint32_t *iblocks = calloc(indirect_num+1, sizeof(uint32_t));
+    uint32_t *blocks = ext2_get_blocks(fs, child_ino, iblocks);
+
+    unsigned int i=0;
+    while(blocks[i])
+    {
+      ext2_free_block(fs, blocks[i]);
+      i++;
+    }
+    i = 1;
+    while(i <= indirect_num)
+    {
+      ext2_free_block(fs, iblocks[i]);
+      i++;
+    }
+
+    unsigned int group = child / data->superblock->inodes_per_group;
+    i = child % data->superblock->inodes_per_group;
+    i--;
+    uint8_t *inode_bitmap = malloc(ext2_blocksize(fs));
+    if(!ext2_readblocks(fs, inode_bitmap, data->groups[group].inode_bitmap, 1))
+      return 1;
+    inode_bitmap[i/0x8] &= ~(1<<(i&0x7));
+    if(!ext2_writeblocks(fs, inode_bitmap, data->groups[group].inode_bitmap, 1))
+      return 1;
+    free(inode_bitmap);
+    data->groups[group].unallocated_inodes ++;
+    data->groups_dirty = 1;
+  }
+  if(!ext2_write_inode(fs, child_ino, child))
+    return 1;
+  free(child_ino);
+
+  return 0;
 }
 
 fstat_t *ext2_fstat(struct fs_st *fs, INODE ino)
