@@ -16,7 +16,7 @@ TARGET=build/libdito.a
 SO_TARGET=$(patsubst %.a,%.so,$(TARGET))
 
 
-all: $(TARGET) $(SO_TARGET) tests $(PROGRAMS)
+all: $(TARGET) $(SO_TARGET) $(PROGRAMS)
 
 dev: CFLAGS=-g -Wall -Isrc -Wall -Wextra $(OPTFLAGS)
 dev: all

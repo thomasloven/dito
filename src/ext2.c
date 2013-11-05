@@ -765,7 +765,7 @@ int ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
 
   ext2_dirinfo_t *di = malloc(dino->size_low + ext2_blocksize(fs));
   ext2_read(fs, dir, di, dino->size_low, 0);
-  ext2_dirinfo_t *next = di, *current;
+  ext2_dirinfo_t *next = di, *current = di;
   // Find last direntry
   while((size_t)next < ((size_t)di + dino->size_low))
   {
@@ -840,7 +840,7 @@ int ext2_unlink(struct fs_st *fs, INODE dir, unsigned int num)
   if(!ext2_read_data(fs, dir_ino, buffer, dir_ino->size_low))
     return 1;
 
-  ext2_dirinfo_t *p, *di = buffer;
+  ext2_dirinfo_t *p = buffer, *di = buffer;
   while(num && (size_t)di < ((size_t)buffer + dir_ino->size_low))
   {
     p = di;
