@@ -34,6 +34,7 @@ typedef struct fs_driver_st
   int (*unlink)(fs_t *fs, INODE dir, unsigned int num);
   fstat_t *(*fstat)(fs_t *fs, INODE ino);
   int (*mkdir)(fs_t *fs, INODE parent, const char *name);
+  int (*rmdir)(fs_t *fs, INODE dir, unsigned int num);
   INODE root;
 
   void *(*hook_load)(fs_t *fs);

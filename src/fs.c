@@ -151,6 +151,14 @@ int fs_mkdir(struct fs_st *fs, INODE parent, const char *name)
   return fs->driver->mkdir(fs, parent, name);
 }
 
+int fs_rmdir(struct fs_st *fs, INODE parent, unsigned int num)
+{
+  if(!fs)
+    return 1;
+  if(fs->driver->rmdir)
+    return fs->driver->rmdir(fs, parent, num);
+  return 1;
+}
 
 INODE fs_finddir(fs_t *fs, INODE dir, const char *name)
 {

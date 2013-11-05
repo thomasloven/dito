@@ -9,11 +9,10 @@ Installing
 	make
 	make install
 
-**With Homebrew**
+**In OSX with Homebrew**
 
 	make
-	PREFIX=/usr/local/Cellar/dito/0.1.0 make install
-	brew link dito
+	make install-homebrew
 
 Path format
 -----------
@@ -96,6 +95,18 @@ Example:
 	dito-cp ext2:image.img:1:/essay.txt - | wc -l
 
 	ls -l | dito-cp - ext2:image.img:1:/directory_listing.txt
+
+**dito-rm**
+
+	dito-rm <path>
+
+Removes (unlinks) a file. Does not work for directories.
+
+**diro-rmdir**
+
+	dito-rmdir <path>
+
+Removes (unlinks) a directory, The directory must be empty.
 
 Important note
 --------------

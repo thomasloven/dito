@@ -154,6 +154,7 @@ int ext2_link(struct fs_st *fs, INODE ino, INODE dir, const char *name);
 int ext2_unlink(struct fs_st *fs, INODE dir, unsigned int num);
 fstat_t *ext2_fstat(struct fs_st *fs, INODE ino);
 int ext2_mkdir(struct fs_st *fs, INODE parent, const char *name);
+int ext2_rmdir(struct fs_st *fs, INODE dir, unsigned int num);
 INODE root;
 
 void *ext2_hook_load(struct fs_st *fs);

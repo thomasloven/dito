@@ -15,6 +15,7 @@ fs_driver_t ext2_driver = {
   ext2_unlink,
   ext2_fstat,
   ext2_mkdir,
+  ext2_rmdir,
   2,
   ext2_hook_load,
   ext2_hook_create,
@@ -1001,6 +1002,43 @@ int ext2_mkdir(struct fs_st *fs, INODE parent, const char *name)
   return 0;
 }
 
+int ext2_rmdir(struct fs_st *fs, INODE dir, unsigned int num)
+{
+  if(!fs)
+    return 1;
+  if(!dir)
+    return 1;
+
+  ext2_data_t *data = fs->data;
+
+  dirent_t *de = ext2_readdir(fs, dir, num);
+  INODE target = de->ino;
+  free(de);
+
+  if(ext2_readdir(fs, target, 2))
+    return 1; // Not empty
+
+  // Decrease parent link count
+  ext2_inode_t *ino = malloc(sizeof(ext2_inode_t));
+  ext2_read_inode(fs, ino, dir);
+  ino->link_count--;
+  ext2_write_inode(fs, ino, dir);
+
+  // Decrease target link count
+  ext2_read_inode(fs, ino, target);
+  ino->link_count--;
+  ext2_write_inode(fs, ino, target);
+  
+  // Unlink target
+  ext2_unlink(fs, dir, num);
+
+  // Decrease directory count
+  uint32_t group = target / data->superblock->inodes_per_group;
+  data->groups[group].num_dir--;
+  data->groups_dirty = 1;
+  
+  return 0;
+}
 
 void *ext2_hook_load(struct fs_st *fs)
 {
@@ -1134,8 +1172,6 @@ void *ext2_hook_create(struct fs_st *fs)
   {
     block_bitmap[i/8] |= 1 << (i&7);
   }
-  printf("Used: %d\n", used_blocks);
-  printf("Blocks per group: %d\n", blocks_per_group);
 
   /* Superblock - 1 block */
   /* Block Group descriptor table - n blocks */

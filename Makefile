@@ -58,6 +58,13 @@ install: all
 	install bin/mkdir $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)mkdir
 	install bin/cp $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)cp
 	install bin/rm $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)rm
+	install bin/rmdir $(DESTDIR)/$(PREFIX)/bin/$(BINPREFIX)rmdir
+
+install-homebrew:
+	PREFIX="`brew --cellar`/dito/0.1.0/" $(MAKE) install
+	brew unlink dito
+	brew link dito
+
 
 clean:
 	rm -rf build $(OBJECTS) $(TESTS) $(PROGRAMS)
