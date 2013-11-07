@@ -1081,7 +1081,7 @@ void *ext2_hook_create(struct fs_st *fs)
   if(!fs)
     return 0;
 
-  ext2_data_t *data = fs->data = malloc(sizeof(ext2_data_t));
+  ext2_data_t *data = fs->data = calloc(1, sizeof(ext2_data_t));
 
   ext2_superblock_t *s = data->superblock = calloc(1, EXT2_SUPERBLOCK_SIZE);
 
@@ -1154,12 +1154,12 @@ void *ext2_hook_create(struct fs_st *fs)
 
 
   // Setup block group descriptors
-  ext2_groupd_t *g = data->groups = calloc(num_groups, sizeof(ext2_groupd_t));
-  data->num_groups = num_groups;
-
   uint32_t group_table_blocks = num_groups*sizeof(ext2_groupd_t);
   group_table_blocks = group_table_blocks/block_size + \
                        ((group_table_blocks%block_size)?1:0);
+
+  ext2_groupd_t *g = data->groups = calloc(group_table_blocks, ext2_blocksize(fs));
+  data->num_groups = num_groups;
 
   uint8_t *block_bitmap = calloc(1, block_size);
   uint8_t *inode_bitmap = calloc(1, block_size);
