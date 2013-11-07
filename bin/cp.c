@@ -120,7 +120,7 @@ void free_path(path_t *p)
 
 size_t iread(void *ptr, size_t size, size_t nitems, file_t *file)
 {
-  int ret;
+  int ret = 0;
   if(file->type == ftype_image)
   {
     ret = fs_read(file->fs, file->ino, ptr, size*nitems, file->offset);
@@ -136,7 +136,7 @@ size_t iread(void *ptr, size_t size, size_t nitems, file_t *file)
 
 size_t iwrite(void *ptr, size_t size, size_t nitems, file_t *file)
 {
-  int ret;
+  int ret = 0;
   if(file->type == ftype_image)
   {
     ret = fs_write(file->fs, file->ino, ptr, size*nitems, file->offset);
