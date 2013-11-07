@@ -208,6 +208,8 @@ int main(int argc, const char *argv[])
       printf("%s \t", de->name);
     }
     i++;
+    free(de->name);
+    free(de);
   }
   if(!detailed) printf("\n");
 
@@ -216,8 +218,6 @@ int main(int argc, const char *argv[])
 end:
   if(st)
     free(st);
-  if(de)
-    free(de);
   if(fs)
     fs_close(fs);
   if(p)
@@ -226,5 +226,7 @@ end:
     image_close(im);
   if(path)
     free_path(path);
+  if(pth)
+    free(pth);
   return retval;
 }

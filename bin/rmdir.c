@@ -227,6 +227,9 @@ end:
   if(pth)
     free(pth);
   if(de)
+  {
+    free(de->name);
     free(de);
+  }
   return retval;
 }

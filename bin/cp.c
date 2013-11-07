@@ -174,8 +174,9 @@ int main(int argc, const char *argv[])
   partition_t *dst_p = 0;
   fs_t *src_fs = 0;
   fs_t *dst_fs = 0;
-  void *buffer;
-  FILE *tmpf;
+  void *buffer = 0;
+  FILE *tmpf = 0;
+  fstat_t *st = 0;
 
   if(argc != 3)
   {
@@ -310,7 +311,6 @@ int main(int argc, const char *argv[])
   } else {
     dst_f.type = ftype_image;
     dst_f.fs = dst_fs;
-    fstat_t *st;
     if(src_f.type == ftype_image)
     {
       st = fs_fstat(src_f.fs, src_f.ino);
@@ -359,6 +359,10 @@ int main(int argc, const char *argv[])
 
 
 end:
+  if(src_f.type == ftype_native && src_f.file)
+    fclose(src_f.file);
+  if(dst_f.type == ftype_native && dst_f.file)
+    fclose(dst_f.file);
   if(src_fs)
     fs_close(src_fs);
   if(dst_fs && dst_fs != src_fs)
@@ -378,6 +382,10 @@ end:
     free_path(src_path);
   if(dst_path)
     free_path(dst_path);
+  if(buffer)
+    free(buffer);
+  if(st)
+    free(st);
 
   return retval;
 }
