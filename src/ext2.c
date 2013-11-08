@@ -169,6 +169,7 @@ uint32_t ext2_alloc_block(fs_t *fs, unsigned int group)
   ext2_data_t *data = fs->data;
   if(group > ext2_numgroups(fs))
     return 0;
+  uint32_t retval = 0;
 
   // Check if preferred group is ok, or find another one
   if(!data->groups[group].unallocated_blocks)
@@ -201,12 +202,12 @@ uint32_t ext2_alloc_block(fs_t *fs, unsigned int group)
   if(!ext2_writeblocks(fs, block_bitmap, data->groups[group].block_bitmap, 1))
     goto error;
 
-  return i;
+  retval = i;
 
 error:
   if(block_bitmap)
     free(block_bitmap);
-  return 0;
+  return retval;
 }
 
 uint32_t ext2_count_indirect(fs_t *fs, size_t size)
@@ -576,6 +577,8 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
     return 0;
   uint32_t *blocks = 0;
   uint32_t *indirect = 0;
+  ext2_inode_t *ino = 0;
+  INODE retval = 0;
   ext2_data_t *data = fs->data;
   if(!data->superblock->num_free_inodes)
     return 0;
@@ -639,7 +642,7 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
   ino_num++; // Inodes start at 1
 
   // Set up inode
-  ext2_inode_t *ino = malloc(sizeof(ext2_inode_t));
+  ino = malloc(sizeof(ext2_inode_t));
   ext2_read_inode(fs, ino, ino_num);
 
   ino->type = 0;
@@ -695,16 +698,18 @@ INODE ext2_touch(struct fs_st *fs, fstat_t *st)
   //Write everything
   ext2_writeblocks(fs, inode_bitmap, data->groups[group].inode_bitmap, 1);
   ext2_write_inode(fs, ino, ino_num);
-  return ino_num;
+  retval = ino_num;
 
 error:
+  if(ino)
+    free(ino);
   if(inode_bitmap)
     free(inode_bitmap);
   if(blocks)
     free(blocks);
   if(indirect)
     free(indirect);
-  return 0;
+  return retval;
 }
 
 dirent_t *ext2_readdir(struct fs_st *fs, INODE dir, unsigned int num)
@@ -714,13 +719,18 @@ dirent_t *ext2_readdir(struct fs_st *fs, INODE dir, unsigned int num)
   if(dir < 2)
     return 0;
 
-  ext2_inode_t *dir_ino = malloc(sizeof(ext2_inode_t));
-  if(!ext2_read_inode(fs, dir_ino, dir))
-    return 0;
+  ext2_inode_t *dir_ino = 0;
+  void *data = 0;
+  dirent_t *de = 0;
+  
 
-  void *data = malloc(dir_ino->size_low);
+  dir_ino = malloc(sizeof(ext2_inode_t));
+  if(!ext2_read_inode(fs, dir_ino, dir))
+    goto end;
+
+  data = malloc(dir_ino->size_low);
   if(!ext2_read_data(fs, dir_ino, data, dir_ino->size_low))
-    return 0;
+    goto end;
 
   ext2_dirinfo_t *di = data;
   while(num && (size_t)di < ((size_t)data + dir_ino->size_low))
@@ -729,14 +739,17 @@ dirent_t *ext2_readdir(struct fs_st *fs, INODE dir, unsigned int num)
     num--;
   }
   if((size_t)di >= ((size_t)data + dir_ino->size_low))
-    return 0;
+    goto end;
 
-  dirent_t *de = malloc(sizeof(dirent_t));
+  de = malloc(sizeof(dirent_t));
   de->ino = di->inode;
   de->name = strndup(di->name, di->name_length);
 
-  free(data);
-  free(dir_ino);
+end:
+  if(data)
+    free(data);
+  if(dir_ino)
+    free(dir_ino);
 
   return de;
 }
@@ -886,6 +899,8 @@ int ext2_unlink(struct fs_st *fs, INODE dir, unsigned int num)
       ext2_free_block(fs, iblocks[i]);
       i++;
     }
+    free(iblocks);
+    free(blocks);
 
     unsigned int group = child / data->superblock->inodes_per_group;
     i = child % data->superblock->inodes_per_group;
@@ -1013,6 +1028,7 @@ int ext2_rmdir(struct fs_st *fs, INODE dir, unsigned int num)
 
   dirent_t *de = ext2_readdir(fs, dir, num);
   INODE target = de->ino;
+  free(de->name);
   free(de);
 
   if(ext2_readdir(fs, target, 2))
@@ -1037,6 +1053,7 @@ int ext2_rmdir(struct fs_st *fs, INODE dir, unsigned int num)
   data->groups[group].num_dir--;
   data->groups_dirty = 1;
   
+  free(ino);
   return 0;
 }
 
@@ -1081,7 +1098,7 @@ void *ext2_hook_create(struct fs_st *fs)
   if(!fs)
     return 0;
 
-  ext2_data_t *data = fs->data = malloc(sizeof(ext2_data_t));
+  ext2_data_t *data = fs->data = calloc(1, sizeof(ext2_data_t));
 
   ext2_superblock_t *s = data->superblock = calloc(1, EXT2_SUPERBLOCK_SIZE);
 
@@ -1154,12 +1171,12 @@ void *ext2_hook_create(struct fs_st *fs)
 
 
   // Setup block group descriptors
-  ext2_groupd_t *g = data->groups = calloc(num_groups, sizeof(ext2_groupd_t));
-  data->num_groups = num_groups;
-
   uint32_t group_table_blocks = num_groups*sizeof(ext2_groupd_t);
   group_table_blocks = group_table_blocks/block_size + \
                        ((group_table_blocks%block_size)?1:0);
+
+  ext2_groupd_t *g = data->groups = calloc(group_table_blocks, ext2_blocksize(fs));
+  data->num_groups = num_groups;
 
   uint8_t *block_bitmap = calloc(1, block_size);
   uint8_t *inode_bitmap = calloc(1, block_size);
@@ -1237,7 +1254,6 @@ void *ext2_hook_create(struct fs_st *fs)
   strcpy(di->name, ".");
 
   ext2_writeblocks(fs, di, root_ino->direct[0], 1);
-  free(di);
   g[0].num_dir = 1;
   
   // Add /..
@@ -1246,6 +1262,11 @@ void *ext2_hook_create(struct fs_st *fs)
   // Add /lost+found
   fs_mkdir(fs, root, "lost+found");
 
+  free(block_bitmap);
+  free(inode_bitmap);
+  free(inode_table);
+  free(root_ino);
+  free(di);
   // Done
   return 0;
 }

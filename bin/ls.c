@@ -25,7 +25,7 @@ path_t *parse_path(const char *input)
   char *s = str;
 
   // Count number of :
-  for(i = 0; s[i]; s[i]==':'?i++:s++);
+  for(i = 0; s[i]; s[i]==':'?i++:(int)(s++));
   if(i == 0)
   {
     // File is not in an image
@@ -208,6 +208,8 @@ int main(int argc, const char *argv[])
       printf("%s \t", de->name);
     }
     i++;
+    free(de->name);
+    free(de);
   }
   if(!detailed) printf("\n");
 
@@ -216,8 +218,6 @@ int main(int argc, const char *argv[])
 end:
   if(st)
     free(st);
-  if(de)
-    free(de);
   if(fs)
     fs_close(fs);
   if(p)
@@ -226,5 +226,7 @@ end:
     image_close(im);
   if(path)
     free_path(path);
+  if(pth)
+    free(pth);
   return retval;
 }

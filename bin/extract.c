@@ -38,7 +38,7 @@ path_t *parse_path(const char *input)
   char *s = str;
 
   // Count number of :
-  for(i = 0; s[i]; s[i]==':'?i++:s++);
+  for(i = 0; s[i]; s[i]==':'?i++:(int)(s++));
   if(i != 1)
   {
     // Path is invalid
@@ -132,7 +132,7 @@ int main(int argc, const char *argv[])
   }
   printf("Extracted %d disk sectors (%d bytes) of partition %d.\n", i, i*512, path->partition+1);
 
-  return 0;
+  retval = 0;
 
 end:
   if(path)

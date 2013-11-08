@@ -39,7 +39,7 @@ path_t *parse_path(const char *input)
   char *s = str;
 
   // Count number of :
-  for(i = 0; s[i]; s[i]==':'?i++:s++);
+  for(i = 0; s[i]; s[i]==':'?i++:(int)(s++));
   if(i == 0)
   {
     // File is not in an image
@@ -220,6 +220,9 @@ end:
   if(pth)
     free(pth);
   if(de)
+  {
+    free(de->name);
     free(de);
+  }
   return retval;
 }

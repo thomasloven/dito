@@ -225,5 +225,6 @@ INODE fs_touchp(fs_t *fs, fstat_t *st, const char *path)
     free(dir);
     return 0;
   }
+  free(dir);
   return ret;
 }

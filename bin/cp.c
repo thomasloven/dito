@@ -42,7 +42,7 @@ path_t *parse_path(const char *input)
   char *s = str;
 
   // Count number of :
-  for(i = 0; s[i]; s[i]==':'?i++:s++);
+  for(i = 0; s[i]; s[i]==':'?i++:(int)(s++));
   if(i == 0)
   {
     // File is not in an image
@@ -120,7 +120,7 @@ void free_path(path_t *p)
 
 size_t iread(void *ptr, size_t size, size_t nitems, file_t *file)
 {
-  int ret;
+  int ret = 0;
   if(file->type == ftype_image)
   {
     ret = fs_read(file->fs, file->ino, ptr, size*nitems, file->offset);
@@ -136,7 +136,7 @@ size_t iread(void *ptr, size_t size, size_t nitems, file_t *file)
 
 size_t iwrite(void *ptr, size_t size, size_t nitems, file_t *file)
 {
-  int ret;
+  int ret = 0;
   if(file->type == ftype_image)
   {
     ret = fs_write(file->fs, file->ino, ptr, size*nitems, file->offset);
@@ -174,8 +174,9 @@ int main(int argc, const char *argv[])
   partition_t *dst_p = 0;
   fs_t *src_fs = 0;
   fs_t *dst_fs = 0;
-  void *buffer;
-  FILE *tmpf;
+  void *buffer = 0;
+  FILE *tmpf = 0;
+  fstat_t *st = 0;
 
   if(argc != 3)
   {
@@ -310,7 +311,6 @@ int main(int argc, const char *argv[])
   } else {
     dst_f.type = ftype_image;
     dst_f.fs = dst_fs;
-    fstat_t *st;
     if(src_f.type == ftype_image)
     {
       st = fs_fstat(src_f.fs, src_f.ino);
@@ -359,6 +359,10 @@ int main(int argc, const char *argv[])
 
 
 end:
+  if(src_f.type == ftype_native && src_f.file)
+    fclose(src_f.file);
+  if(dst_f.type == ftype_native && dst_f.file)
+    fclose(dst_f.file);
   if(src_fs)
     fs_close(src_fs);
   if(dst_fs && dst_fs != src_fs)
@@ -378,6 +382,10 @@ end:
     free_path(src_path);
   if(dst_path)
     free_path(dst_path);
+  if(buffer)
+    free(buffer);
+  if(st)
+    free(st);
 
   return retval;
 }
