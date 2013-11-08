@@ -1,5 +1,6 @@
 #include "fs.h"
 #include "ext2.h"
+#include "fat.h"
 #include <dito.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,8 +11,7 @@ fs_driver_t *supported[] = {
   0, // native
   0, // std
   &ext2_driver,
-  0, // fat16
-  0, // fat 32
+  &fat_driver, // fat
   0, // sfs
   0, // ntfs
   0, // hfs
