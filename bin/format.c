@@ -38,7 +38,7 @@ path_t *parse_path(const char *input)
   char *s = str;
 
   // Count number of :
-  for(i = 0; s[i]; s[i]==':'?i++:s++);
+  for(i = 0; s[i]; s[i]==':'?i++:(int)(s++));
   if(i != 1)
   {
     // Path is invalid
