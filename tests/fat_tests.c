@@ -63,14 +63,7 @@ char *test_fat_readcluster()
   mu_assert(fat_bits(fs) == 0, "Wrong FAT type (Not 12)");
 
   fat_bpb_t *bpb = ((fat_data_t *)fs->data)->bpb;
-  printf(" Reserved sectors: %d\n", bpb->reserved_sectors);
-  printf(" Fats: %d sectors: %d\n", bpb->fat_count, bpb->sectors_per_fat);
-  printf(" Root dir size: %d (%d sectors, %d clusters)\n", bpb->root_count, bpb->root_count*32/bpb->bytes_per_sector, bpb->root_count*32/bpb->bytes_per_sector/bpb->sectors_per_cluster);
 
-  int i = 0;
-  dirent_t *de;
-  while(de = fs_readdir(fs, 1, i))
-    printf("Name %d: %s %d\n", i++, de->name, de->ino);
   /* return (bpb->reserved_sectors + bpb->fat_count*bpb->sectors_per_fat)/bpb->sectors_per_cluster; */
 
 

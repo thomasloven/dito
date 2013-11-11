@@ -66,7 +66,7 @@ typedef struct fat_dir_st
   uint16_t mdate;
   uint16_t cluster_low;
   uint32_t size;
-} fat_dir_t;
+}__attribute__((packed)) fat_dir_t;
 
 #define FAT_DIR_READ_ONLY 0x01
 #define FAT_DIR_HIDDEN 0x02
@@ -86,7 +86,7 @@ typedef struct fat_longname_st
   uint8_t name2[12];
   uint16_t zero;
   uint8_t name3[4];
-} fat_longname_t;
+}__attribute__((packed)) fat_longname_t;
 
 typedef struct fat_inode_st
 {
@@ -103,7 +103,7 @@ typedef struct fat_inode_st
 typedef struct
 {
   fat_bpb_t *bpb;
-  uint8_t **fat;
+  uint8_t *fat;
   fat_inode_t *inodes;
   fat_inode_t *last;
   INODE next;
@@ -142,3 +142,5 @@ int fat_hook_check(struct fs_st *fs);
 
 int fat_bits(struct fs_st *fs);
 uint32_t fat_read_fat(struct fs_st *fs, uint32_t cluster);
+fat_inode_t *fat_get_inode(struct fs_st *fs, INODE ino);
+uint32_t *fat_get_clusters(struct fs_st *fs, INODE ino);
