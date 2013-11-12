@@ -123,6 +123,8 @@ typedef struct
 #define fat_num_clusters(fs) (fat_num_sectors(fs) / fat_bpb(fs)->sectors_per_cluster)
 #define fat_clustersize(fs) (fat_bpb(fs)->bytes_per_sector*fat_bpb(fs)->sectors_per_cluster)
 
+#define fat_type(fs, a, b, c) (if(fat_bits(fs)==12)(a);else if(fat_bits(fs)==16)(b); else(c);)
+
 fs_driver_t fat_driver;
 
 int fat_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset);

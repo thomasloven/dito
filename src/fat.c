@@ -33,13 +33,13 @@ int fat_bits(struct fs_st *fs)
 
   if(fat_num_clusters(fs) < 4085)
   {
-    return 0; // FAT12
+    return 12; // FAT12
   } else {
     if(fat_num_clusters(fs) < 65525)
     {
-      return 1; // FAT16
+      return 16; // FAT16
     } else {
-      return 2; // FAT32
+      return 32; // FAT32
     }
   }
 }
@@ -47,12 +47,11 @@ int fat_bits(struct fs_st *fs)
 uint32_t fat_root_cluster(struct fs_st *fs)
 {
   fat_bpb_t *bpb = fat_bpb(fs);
-  if(fat_bits(fs) == 2)
+  if(fat_bits(fs) == 32)
     return fat_bpb(fs)->fat32.root_cluster;
   return (bpb->reserved_sectors + bpb->fat_count*bpb->sectors_per_fat)/bpb->sectors_per_cluster;
   /* return fat_first_data_sector(fs) / fat_bpb(fs)->sectors_per_cluster; */
 }
-
 
 size_t fat_readclusters(struct fs_st *fs, void *buffer, size_t cluster, size_t length)
 {
@@ -133,6 +132,40 @@ uint32_t fat_get_clusternum(struct fs_st *fs, INODE ino)
     cluster = fat_read_fat(fs, cluster);
   }
   return ret;
+}
+
+char *fat_read_longname(void *de)
+{
+  fat_longname_t *ln = de;
+  if(ln[0].attrib != FAT_DIR_LONGNAME)
+    return 0;
+  if(!(ln[0].num & 0x40))
+    return 0;
+
+  int entries = ln[0].num & 0x1F;
+  char *name = calloc(entries*13 + 1, 1);
+  int i = 0;
+  int j = entries;
+  while(j)
+  {
+    j--;
+    name[i++] = ln[j].name1[0];
+    name[i++] = ln[j].name1[2];
+    name[i++] = ln[j].name1[4];
+    name[i++] = ln[j].name1[6];
+    name[i++] = ln[j].name1[8];
+    name[i++] = ln[j].name2[0];
+    name[i++] = ln[j].name2[2];
+    name[i++] = ln[j].name2[4];
+    name[i++] = ln[j].name2[6];
+    name[i++] = ln[j].name2[8];
+    name[i++] = ln[j].name2[10];
+    name[i++] = ln[j].name3[0];
+    name[i++] = ln[j].name3[2];
+  }
+
+  return name;
+
 }
 
 int fat_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset)
@@ -220,7 +253,7 @@ dirent_t *fat_readdir(struct fs_st *fs, INODE dir, unsigned int num)
       // Other directory
       uint32_t size = fat_get_clusternum(fs, dir)*fat_clustersize(fs);
       buffer = calloc(1, size);
-      int readbytes = fat_read(fs, dir, buffer, size, 0);
+      fat_read(fs, dir, buffer, size, 0);
       max = (size_t)buffer + size;
       num +=2; // I want to handle . and .. myself
     }
@@ -246,27 +279,31 @@ dirent_t *fat_readdir(struct fs_st *fs, INODE dir, unsigned int num)
       free(buffer);
       return 0;
     }
-    while(de->attrib == FAT_DIR_LONGNAME)
-    {
-      // Ignore long names for now
-      de++;
-    }
+
+    char *longname = fat_read_longname(de);
+    while(de->attrib == FAT_DIR_LONGNAME) de++;
 
     // Now de is the entry we want
     dirent_t *ret = calloc(1, sizeof(dirent_t));
     ret->ino = fat_data(fs)->next;
-    ret->name = calloc(8, 1);
-    char *c;
-    if( (c = strchr((char *)de->name, ' ')))
-      c[0] = '\0';
-    c = stpncpy(ret->name, (char *)de->name, 8);
-    if(de->attrib != FAT_DIR_DIRECTORY)
+    if(longname)
     {
-      c[0] = '.';
-      strncpy(&c[1], (char *)&de->name[8], 3);
-      if((c = strchr(ret->name, ' ')))
-          c[0] = '\0';
+      ret->name = strdup(longname);
+      free(longname);
     } else {
+      ret->name = calloc(8, 1);
+      char *c;
+      if( (c = strchr((char *)de->name, ' ')))
+        c[0] = '\0';
+      c = stpncpy(ret->name, (char *)de->name, 8);
+      if(de->attrib != FAT_DIR_DIRECTORY)
+      {
+        c[0] = '.';
+        strncpy(&c[1], (char *)&de->name[8], 3);
+        if((c = strchr(ret->name, ' ')))
+            c[0] = '\0';
+      } else {
+      }
     }
 
     fat_inode_t *inode = calloc(1, sizeof(fat_inode_t));
@@ -383,6 +420,75 @@ void *fat_hook_load(struct fs_st *fs)
 
 void *fat_hook_create(struct fs_st *fs)
 {
+  fat_data_t *data = fs->data = calloc(1, sizeof(fat_data_t));
+
+  fat_bpb_t *bpb = data->bpb = calloc(1, sizeof(fat_bpb_t));
+
+  uint32_t num_sectors = fs->p->length;
+  uint32_t fs_size = num_sectors * BLOCK_SIZE;
+
+  int fat_bits = 12;
+  if(fs_size >= 0x80000000) // 2047 Mb
+    fat_bits = 32;
+  else if(fs_size >= 0x1000000) // 16 Mb
+    fat_bits = 16;
+
+  if(fat_bits != 12)
+  {
+    printf("Warning: Partition size requires fat 16 or 32, which are not implemented!\n");
+    printf("Nothing is guaranteed from this point.\n");
+  }
+
+  printf(" Using FAT%d\n", fat_bits);
+
+  int cluster_size = 8;
+  while(fs_size >= 0x1000000) // 16 Mb
+  {
+    cluster_size *= 2;
+    fs_size /= 2;
+  }
+
+
+  bpb->jmp[0] = 0xEB;
+  bpb->jmp[1] = 0x3C;
+  bpb->jmp[2] = 0x90;
+
+  strcpy((char *)bpb->identifier, "mkdosfs");
+  bpb->identifier[7] = ' ';
+
+  bpb->bytes_per_sector = 512;
+  bpb->sectors_per_cluster = cluster_size;
+  bpb->reserved_sectors = (fat_bits == 32)?32:4;
+  bpb->fat_count = 2;
+  if(fat_bits != 32)
+  {
+    if(fs_size > 0x400000) // 4 mb (2.88 mb floppy disk - I think...)
+      bpb->root_count = 512;
+    else
+      bpb->root_count = 240;
+  } else {
+    bpb->root_count = 0;
+  }
+  bpb->total_sectors_small = (num_sectors > 65535)?0:num_sectors;
+  bpb->total_sectors_large = (num_sectors > 65535)?num_sectors:0;
+  bpb->media_descriptor = (fs_size > 0x400000)?0xF8:0xF0;
+  if(fat_bits != 32)
+  {
+    uint32_t fat_size = num_sectors/cluster_size - bpb->reserved_sectors;
+    uint32_t entries_per_sector = bpb->bytes_per_sector*8/fat_bits;
+    bpb->sectors_per_fat = fat_size/entries_per_sector;
+    if(fat_size%entries_per_sector)
+      bpb->sectors_per_fat++;
+  } else {
+    bpb->sectors_per_fat = 0;
+  }
+  bpb->sectors_per_track = 32;
+  bpb->num_heads = 64;
+  bpb->hidden_sectors = 0;
+
+
+  partition_writeblocks(fs->p, data->bpb, 0, 1);
+
   return 0;
 }
 
