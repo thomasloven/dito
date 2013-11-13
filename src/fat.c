@@ -68,14 +68,20 @@ size_t fat_readclusters(struct fs_st *fs, void *buffer, size_t cluster, size_t l
 
 size_t fat_writeclusters(struct fs_st *fs, void *buffer, size_t cluster, size_t length)
 {
-  size_t startsector = (cluster - 2)*fat_bpb(fs)->sectors_per_cluster + fat_first_data_sector(fs);
+  size_t start = fat_first_data_sector(fs);
+  if(cluster >= 2)
+  {
+    start += fat_root_sectors(fs);
+    start += (cluster-2)*fat_bpb(fs)->sectors_per_cluster;
+  }
   length *= fat_bpb(fs)->sectors_per_cluster;
 
-  return partition_writeblocks(fs->p, buffer, startsector, length);
+  return partition_writeblocks(fs->p, buffer, start, length);
 }
 
 uint32_t fat_read_fat(struct fs_st *fs, uint32_t cluster)
 {
+  // FAT12
   uint32_t offset = cluster + cluster/2;
   uint16_t value = *(uint16_t *)&(fat_data(fs)->fat[offset]);
   if (cluster & 0x0001)
@@ -83,6 +89,32 @@ uint32_t fat_read_fat(struct fs_st *fs, uint32_t cluster)
   else
     value &= 0x0FFF;
   return value;
+}
+
+void fat_write_fat(struct fs_st *fs, uint32_t cluster, uint32_t set)
+{
+  uint32_t offset = cluster + cluster/2;
+  uint16_t value = *(uint16_t *)&(fat_data(fs)->fat[offset]);
+  if(cluster & 0x0001)
+    value = (value & 0x000F) | (set << 4);
+  else
+    value = (value & 0xF000) | (set & 0x0FFF);
+  *(uint16_t *)&(fat_data(fs)->fat[offset]) = value;
+}
+
+uint32_t fat_find_free(struct fs_st *fs, uint32_t offset)
+{
+  uint32_t i = 3;
+  while(i < fat_num_clusters(fs))
+  {
+    if(fat_read_fat(fs, i))
+      i++;
+    else
+      return i;
+  }
+
+  return 0;
+
 }
 
 fat_inode_t *fat_get_inode(struct fs_st *fs, INODE ino)
@@ -123,7 +155,7 @@ uint32_t *fat_get_clusters(struct fs_st *fs, INODE ino)
 
 uint32_t fat_get_clusternum(struct fs_st *fs, INODE ino)
 {
-  uint32_t ret = 1;
+  uint32_t ret = 0;
   fat_inode_t *inode = fat_get_inode(fs, ino);
   uint32_t cluster = inode->cluster;
   while(cluster < 0xFF8)
@@ -168,14 +200,94 @@ char *fat_read_longname(void *de)
 
 }
 
+uint8_t fat_checksum(const char *shortname)
+{
+  int i;
+  uint8_t sum = 0;
+  for(i = 11; i; i--)
+    sum = ((sum & 1) << 7) + (sum >> 1) + *shortname++;
+
+  return sum;
+}
+
+char *fat_make_shortname(const char *longname)
+{
+  char *shortname = calloc(11, 1);
+  strncpy(shortname, longname, 8);
+  int i = 0;
+  if(strchr(shortname, '.'))
+  {
+    int i = (size_t)strchr(shortname, '.') - (size_t)shortname;
+    while(i < 8)
+      shortname[i++] = ' ';
+  }
+
+  i = strlen(shortname);
+  while(i < 8)
+    shortname[i++] = ' ';
+  char *dot = strrchr(longname, '.');
+
+  strncpy(&shortname[8], &dot[1], 3);
+  i = strlen(shortname);
+  while(i < 11)
+    shortname[i++] = ' ';
+  return shortname;
+}
+
+void *fat_write_longname(void *de, const char *name)
+{
+  char *shortname = fat_make_shortname(name);
+
+  size_t entries = strlen(name)/13;
+  if(strlen(name)%13) entries++;
+  char *buffer = calloc(entries, 26);
+  size_t i = 0, j = 0;
+  while(i < strlen(name))
+  {
+    buffer[j] = name[i];
+    i++;
+    j += 2;
+  }
+  j += 2;
+  while(j < entries*26)
+  {
+    buffer[j++] = '\xff';
+  }
+
+  fat_longname_t *ln = de;
+
+  i = entries;
+  j = 1;
+  int k = 0;
+  while(i)
+  {
+    i--;
+    ln[i].attrib = FAT_DIR_LONGNAME;
+    ln[i].num = j++;
+    memcpy(ln[i].name1, &buffer[k], 10);
+    k += 10;
+    memcpy(ln[i].name2, &buffer[k], 12);
+    k += 12;
+    memcpy(ln[i].name3, &buffer[k], 4);
+    k += 4;
+    ln[i].entry_type = 0;
+    ln[i].checksum = fat_checksum(shortname);
+  }
+  ln[0].num |= 0x40;
+
+  return &ln[entries];
+}
+
+
+
 int fat_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset)
 {
   fat_inode_t *inode = fat_get_inode(fs, ino);
   uint32_t *clusters = fat_get_clusters(fs, ino);
 
-  if(inode->type == FAT_DIR_DIRECTORY)
+  if(inode->size == 0)
   {
-    uint32_t size = fat_get_clusternum(fs, dir)*fat_clustersize(fs);
+    uint32_t size = fat_get_clusternum(fs, ino)*fat_clustersize(fs);
     if(offset + length > size)
       length = size - offset;
   } else {
@@ -202,17 +314,77 @@ int fat_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t of
   memcpy(buffer, (void *)((size_t)buff + cluster_offset), length);
 
   return length;
-
 }
 
 int fat_write(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset)
 {
-  return 0;
+  fat_inode_t *inode = fat_get_inode(fs, ino);
+  uint32_t *clusters = fat_get_clusters(fs, ino);
+
+  if(inode->size == 0)
+  {
+    uint32_t size = fat_get_clusternum(fs, ino)*fat_clustersize(fs);
+    if(offset + length > size)
+      length = size - offset;
+  } else {
+    if(offset + length > inode->size)
+      length = inode->size - offset;
+  }
+
+  uint32_t start_cluster = offset/(fat_clustersize(fs));
+  uint32_t cluster_offset = offset%(fat_clustersize(fs));
+  uint32_t num_clusters = (length+cluster_offset)/(fat_clustersize(fs));
+  if((length+cluster_offset)%(fat_clustersize(fs)))
+    num_clusters++;
+
+  void *buff = 0;
+  void *b = buff = calloc(1, num_clusters*fat_clustersize(fs));
+  fat_read(fs, ino, buff, num_clusters*fat_clustersize(fs), offset - cluster_offset);
+  memcpy((void *)((size_t)buff + cluster_offset), buffer, length);
+  uint32_t i = start_cluster;
+  while( i < (start_cluster + num_clusters) && clusters[i])
+  {
+    fat_writeclusters(fs, b, clusters[i], 1);
+    b = (void *)((size_t)b + fat_clustersize(fs));
+    i++;
+  }
+
+  return length;
 }
 
 INODE fat_touch(struct fs_st *fs, fstat_t *st)
 {
-  return 0;
+  // Create inode
+  INODE retval = fat_data(fs)->next++;
+  fat_inode_t *ino = calloc(1, sizeof(fat_inode_t));
+
+  ino->parent = -1;
+  if((st->mode & S_DIR) == S_DIR)
+    ino->type = FAT_DIR_DIRECTORY;
+  ino->atime = st->atime;
+  ino->ctime = st->ctime;
+  ino->mtime = st->mtime;
+  ino->size = st->size;
+
+  // Allocate clusters
+  uint32_t size = ino->size - fat_clustersize(fs);
+  uint32_t current = ino->cluster = fat_find_free(fs, 1);
+  fat_write_fat(fs, current, 0xFF8);
+  while(size >0)
+  {
+    fat_write_fat(fs, current, fat_find_free(fs, 1));
+    current = fat_read_fat(fs, current);
+    fat_write_fat(fs, current, 0xFF8);
+    if(fat_clustersize(fs) > size)
+      size = 0;
+    else
+      size -= fat_clustersize(fs);
+  }
+
+  fat_data(fs)->last->next = ino;
+  fat_data(fs)->last = ino;
+
+  return retval;
 }
 
 dirent_t *fat_readdir(struct fs_st *fs, INODE dir, unsigned int num)
@@ -356,6 +528,77 @@ dirent_t *fat_readdir(struct fs_st *fs, INODE dir, unsigned int num)
 
 int fat_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
 {
+  fat_inode_t *dino = fat_get_inode(fs, dir);
+  fat_inode_t *iino = fat_get_inode(fs, ino);
+  iino->parent = dir;
+  uint32_t size = fat_get_clusternum(fs, dir)*fat_clustersize(fs);
+  void *buffer = calloc(1, size + fat_clustersize(fs));
+  fat_read(fs, dir, buffer, size, 0);
+
+  uint32_t entries = strlen(name)/13 + 1;
+  uint32_t found = 0;
+  fat_dir_t *firstfree = 0;
+  fat_dir_t *de = buffer;
+  int counter = 0;
+  while(de->name[0] != 0)
+  {
+    if(de->name[0] == 0xE5)
+    {
+      if(!found)
+        firstfree = de;
+      found++;
+      if(found >= entries)
+      {
+        de = firstfree;
+        break;
+      }
+    } else {
+      found = 0;
+    }
+    de++;
+    counter++;
+  }
+
+  firstfree = de;
+  // de is the first free entry.
+  de = fat_write_longname(de, name);
+  strncpy((char *)de->name, fat_make_shortname(name), 11);
+  de->attrib = iino->type;
+  de->csec = 0;
+  time_t ctm = iino->ctime;
+  struct tm *ctime = gmtime(&ctm);
+  de->ctime = ((ctime->tm_hour & 0x1F) << 11) | ((ctime->tm_min &0x3F) << 5) | ((ctime->tm_sec & 0x1F));
+  de->cdate = ((ctime->tm_year & 0x7F) << 9) | ((ctime->tm_mon & 0xF) << 5) | ((ctime->tm_mday & 0x1F));
+  time_t atm = iino->atime;
+  struct tm *atime = gmtime(&atm);
+  de->adate = ((atime->tm_year & 0x7F) << 9) | ((atime->tm_mon & 0xF) << 5) | ((atime->tm_mday & 0x1F));
+  time_t mtm = iino->mtime;
+  struct tm *mtime = gmtime(&mtm);
+  de->mtime = ((mtime->tm_hour & 0x1F) << 11) | ((mtime->tm_min &0x3F) << 5) | ((mtime->tm_sec & 0x1F));
+  de->mdate = ((mtime->tm_year & 0x7F) << 9) | ((mtime->tm_mon & 0xF) << 5) | ((mtime->tm_mday & 0x1F));
+  de->cluster_high = iino->cluster >> 16;
+  de->cluster_low = iino->cluster & 0xFF;
+  de->size = iino->size;
+  
+  firstfree = de;
+  de++;
+  if((size_t)de > (size_t)buffer + size)
+  {
+    // Increase size for directory
+    uint32_t last = 0, current = dino->cluster;
+    while(current < 0xFF8)
+    {
+      last = current;
+      current = fat_read_fat(fs, current);
+    }
+    current = fat_find_free(fs, 1);
+    fat_write_fat(fs, last, current);
+    fat_write_fat(fs, current, 0xFF8);
+    size += fat_clustersize(fs);
+  }
+  fat_write(fs, dir, buffer, size, 0);
+  fat_read(fs, dir, buffer, size, 0);
+
   return 0;
 }
 
@@ -428,7 +671,7 @@ void *fat_hook_create(struct fs_st *fs)
   uint32_t fs_size = num_sectors * BLOCK_SIZE;
 
   int fat_bits = 12;
-  if(fs_size >= 0x80000000) // 2047 Mb
+  if(fs_size >= 0x80000000) // 2048 Mb
     fat_bits = 32;
   else if(fs_size >= 0x1000000) // 16 Mb
     fat_bits = 16;
@@ -494,6 +737,8 @@ void *fat_hook_create(struct fs_st *fs)
 
 void fat_hook_close(struct fs_st *fs)
 {
+  fat_data_t *data = fat_data(fs);
+  partition_writeblocks(fs->p, data->fat, data->bpb->reserved_sectors, fat_bpb(fs)->sectors_per_fat);
   return;
 }
 

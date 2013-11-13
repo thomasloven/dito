@@ -144,5 +144,10 @@ int fat_hook_check(struct fs_st *fs);
 
 int fat_bits(struct fs_st *fs);
 uint32_t fat_read_fat(struct fs_st *fs, uint32_t cluster);
+void fat_write_fat(struct fs_st *fs, uint32_t cluster, uint32_t set);
 fat_inode_t *fat_get_inode(struct fs_st *fs, INODE ino);
 uint32_t *fat_get_clusters(struct fs_st *fs, INODE ino);
+char *fat_make_shortname(const char *longname);
+
+void *fat_write_longname(void *de, const char *name);
+char *fat_read_longname(void *de);
