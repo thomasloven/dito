@@ -455,21 +455,19 @@ dirent_t *fat_readdir(struct fs_st *fs, INODE dir, unsigned int num)
   } else {
     void *buffer = 0;
     size_t max = 0;
+    uint32_t size = 0;
     if(dir == 1)
     {
       // Root directory
-      buffer = calloc(1, dir_ino->size);
-      size_t dir_size = bpb->root_count*32/fat_clustersize(fs);
-      fat_readclusters(fs, buffer, dir_ino->cluster, dir_size);
-      max = (size_t)buffer + bpb->root_count*32;
+      size = bpb->root_count*32;
     } else {
       // Other directory
-      uint32_t size = fat_get_clusternum(fs, dir)*fat_clustersize(fs);
-      buffer = calloc(1, size);
-      fat_read(fs, dir, buffer, size, 0);
-      max = (size_t)buffer + size;
+      size = fat_get_clusternum(fs, dir)*fat_clustersize(fs);
       num +=2; // I want to handle . and .. myself
     }
+    buffer = calloc(1, size);
+    fat_read(fs, dir, buffer, size, 0);
+    max = (size_t)buffer + size;
 
     fat_dir_t *de = buffer;
     while((num > 2) && ((size_t)de < max))
