@@ -50,7 +50,7 @@ install: all
 	install -d $(DESTDIR)$(PREFIX)/lib/
 	install $(TARGET) $(DESTDIR)$(PREFIX)/lib/
 	install -d $(DESTDIR)$(PREFIX)/include
-	install src/dito.h $(DESTDIR)$(PREFIX)/lib/
+	install src/dito.h $(DESTDIR)$(PREFIX)/include/
 	install -d $(DESTDIR)$(PREFIX)/bin/
 	install bin/generate $(DESTDIR)$(PREFIX)/bin/$(BINPREFIX)generate
 	install bin/extract $(DESTDIR)$(PREFIX)/bin/$(BINPREFIX)extract
