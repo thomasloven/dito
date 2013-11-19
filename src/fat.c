@@ -102,7 +102,7 @@ void fat_write_fat(struct fs_st *fs, uint32_t cluster, uint32_t set)
   *(uint16_t *)&(fat_data(fs)->fat[offset]) = value;
 }
 
-uint32_t fat_find_free(struct fs_st *fs, uint32_t offset)
+uint32_t fat_find_free(struct fs_st *fs)
 {
   uint32_t i = 3;
   while(i < fat_num_clusters(fs))
@@ -396,11 +396,11 @@ INODE fat_touch(struct fs_st *fs, fstat_t *st)
 
   // Allocate clusters
   int32_t size = ino->size - fat_clustersize(fs);
-  uint32_t current = ino->cluster = fat_find_free(fs, 1);
+  uint32_t current = ino->cluster = fat_find_free(fs);
   fat_write_fat(fs, current, 0xFF8);
   while(size >0)
   {
-    fat_write_fat(fs, current, fat_find_free(fs, 1));
+    fat_write_fat(fs, current, fat_find_free(fs));
     current = fat_read_fat(fs, current);
     fat_write_fat(fs, current, 0xFF8);
     if(fat_clustersize(fs) > size)
@@ -422,7 +422,6 @@ dirent_t *fat_readdir(struct fs_st *fs, INODE dir, unsigned int num)
   fat_inode_t *dir_ino = 0;
   if(!(dir_ino = fat_get_inode(fs, dir)))
     return 0;
-  fat_bpb_t *bpb = fat_bpb(fs);
   if(dir_ino->type != FAT_DIR_DIRECTORY)
     return 0;
 
@@ -552,7 +551,6 @@ int fat_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
   fat_inode_t *iino = fat_get_inode(fs, ino);
   iino->parent = dir;
   uint32_t size = 0;
-  fat_bpb_t *bpb = fat_bpb(fs);
   size = fat_get_clusternum(fs, dir)*fat_clustersize(fs);
   void *buffer = calloc(1, size + fat_clustersize(fs));
   fat_read(fs, dir, buffer, size, 0);
@@ -588,7 +586,7 @@ int fat_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
     de = fat_write_longname(de, name);
     strncpy((char *)de->name, fat_make_shortname(name), 11);
   } else {
-    strcpy(de->name, name);
+    strcpy((char *)de->name, name);
   }
   de->attrib = iino->type;
   de->csec = 0;
@@ -618,7 +616,7 @@ int fat_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
       last = current;
       current = fat_read_fat(fs, current);
     }
-    current = fat_find_free(fs, 1);
+    current = fat_find_free(fs);
     fat_write_fat(fs, last, current);
     fat_write_fat(fs, current, 0xFF8);
     size += fat_clustersize(fs);
@@ -639,7 +637,6 @@ int fat_unlink(struct fs_st *fs, INODE dir, unsigned int num)
   dirent_t *dirent = fat_readdir(fs, dir, num);
   INODE item = dirent->ino;
   free(dirent);
-  fat_bpb_t *bpb = fat_bpb(fs);
   if(dir_ino->type != FAT_DIR_DIRECTORY)
     return 0;
 
@@ -760,6 +757,21 @@ int fat_mkdir(struct fs_st *fs, INODE parent, const char *name)
 
 int fat_rmdir(struct fs_st *fs, INODE dir, unsigned int num)
 {
+  if(!fs)
+    return 1;
+  if(!dir)
+    return 1;
+
+  dirent_t *de = fat_readdir(fs, dir, num);
+  INODE target = de->ino;
+  free(de->name);
+  free(de);
+
+  if(fat_readdir(fs, target, 2))
+    return 1; // Not empty
+
+  fat_unlink(fs, dir, num);
+
   return 0;
 }
 
