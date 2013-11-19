@@ -237,7 +237,8 @@ char *fat_make_shortname(const char *longname)
     shortname[i++] = ' ';
   char *dot = strrchr(longname, '.');
 
-  strncpy(&shortname[8], &dot[1], 3);
+  if(dot)
+    strncpy(&shortname[8], &dot[1], 3);
   i = strlen(shortname);
   while(i < 11)
     shortname[i++] = ' ';
@@ -394,7 +395,7 @@ INODE fat_touch(struct fs_st *fs, fstat_t *st)
   ino->size = st->size;
 
   // Allocate clusters
-  uint32_t size = ino->size - fat_clustersize(fs);
+  int32_t size = ino->size - fat_clustersize(fs);
   uint32_t current = ino->cluster = fat_find_free(fs, 1);
   fat_write_fat(fs, current, 0xFF8);
   while(size >0)
@@ -582,8 +583,13 @@ int fat_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
 
   firstfree = de;
   // de is the first free entry.
-  de = fat_write_longname(de, name);
-  strncpy((char *)de->name, fat_make_shortname(name), 11);
+  if(strcmp(name, ".          ") && strcmp(name, "..         "))
+  {
+    de = fat_write_longname(de, name);
+    strncpy((char *)de->name, fat_make_shortname(name), 11);
+  } else {
+    strcpy(de->name, name);
+  }
   de->attrib = iino->type;
   de->csec = 0;
   time_t ctm = iino->ctime;
@@ -723,6 +729,32 @@ fstat_t *fat_fstat(struct fs_st *fs, INODE ino)
 
 int fat_mkdir(struct fs_st *fs, INODE parent, const char *name)
 {
+  if(!fs)
+    return 1;
+  if(!parent)
+    return 1;
+  if(!name)
+    return 1;
+
+  fstat_t st;
+  st.size = 0;
+  st.mode = S_DIR | 0755;
+  st.atime = time(0);
+  st.ctime = time(0);
+  st.mtime = time(0);
+
+  INODE child = fat_touch(fs, &st);
+  if(fat_link(fs, child, parent, name))
+    return 1;
+
+  fat_dir_t *de = calloc(1, fat_clustersize(fs));
+  fat_write(fs, child, de, fat_clustersize(fs), 0);
+  free(de);
+  fat_link(fs, child, child, ".          ");
+  fat_link(fs, parent, child, "..         ");
+  
+
+
   return 0;
 }
 
@@ -748,7 +780,7 @@ void *fat_hook_load(struct fs_st *fs)
   data->inodes->parent = 1;
   data->inodes->type = FAT_DIR_DIRECTORY;
   data->inodes->cluster = 0;
-  data->inodes->size = fat_bpb(fs)->root_count * sizeof(fat_dir_t);
+  data->inodes->size = 0;
   data->last = data->inodes;
   data->next = 2;
 
