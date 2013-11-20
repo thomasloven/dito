@@ -286,6 +286,8 @@ void *fat_write_longname(void *de, const char *name)
   }
   ln[0].num |= 0x40;
 
+  free(buffer);
+  free(shortname);
   return &ln[entries];
 }
 
@@ -320,6 +322,8 @@ int fat_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t of
 
   memcpy(buffer, (void *)((size_t)buff + cluster_offset), length);
 
+  free(clusters);
+  free(buff);
   return length;
 }
 
@@ -376,6 +380,9 @@ int fat_write(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t o
     b = (void *)((size_t)b + fat_clustersize(fs));
     i++;
   }
+
+  free(clusters);
+  free(buff);
 
   return length;
 }
@@ -584,7 +591,9 @@ int fat_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
   if(strcmp(name, ".          ") && strcmp(name, "..         "))
   {
     de = fat_write_longname(de, name);
-    strncpy((char *)de->name, fat_make_shortname(name), 11);
+    char *shortname = fat_make_shortname(name);
+    strncpy((char *)de->name, shortname, 11);
+    free(shortname);
   } else {
     strcpy((char *)de->name, name);
   }
@@ -623,6 +632,8 @@ int fat_link(struct fs_st *fs, INODE ino, INODE dir, const char *name)
   }
   fat_write(fs, dir, buffer, size, 0);
 
+  free(buffer);
+
   return 0;
 }
 
@@ -636,6 +647,7 @@ int fat_unlink(struct fs_st *fs, INODE dir, unsigned int num)
     return 0;
   dirent_t *dirent = fat_readdir(fs, dir, num);
   INODE item = dirent->ino;
+  free(dirent->name);
   free(dirent);
   if(dir_ino->type != FAT_DIR_DIRECTORY)
     return 0;
@@ -699,7 +711,7 @@ int fat_unlink(struct fs_st *fs, INODE dir, unsigned int num)
     i++;
   }
 
-
+  free(clusters);
 
   return 1;
 }
@@ -887,6 +899,16 @@ void fat_hook_close(struct fs_st *fs)
     offset += data->bpb->sectors_per_fat;
     i++;
   }
+  while(data->inodes)
+  {
+    data->last = data->inodes;
+    data->inodes = data->inodes->next;
+    free(data->last);
+  }
+
+  free(data->bpb);
+  free(data->fat);
+  free(data);
   return;
 }
 
