@@ -182,6 +182,7 @@ int main(int argc, const char *argv[])
     retval = 1;
     goto end;
   }
+  free(st);
   int i = 0;
   while((de = fs_readdir(fs, dir, i)))
   {
@@ -203,6 +204,7 @@ int main(int argc, const char *argv[])
       char buffer[25];
       strftime(buffer, 25, "%d %b %H:%M", gmtime(&mtime));
       printf("\t %ld \t %s \t %s\n", st->size, buffer, de->name);
+      free(st);
     } else {
       printf("%s \t", de->name);
     }
