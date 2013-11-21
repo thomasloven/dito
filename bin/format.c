@@ -123,8 +123,7 @@ int main(int argc, const char *argv[])
   }
 
   if(!strcmp(argv[2], "ext2")) path->type = ext2;
-  else if(!strcmp(argv[2], "fat16")) path->type = fat16;
-  else if(!strcmp(argv[2], "fat32")) path->type = fat32;
+  else if(!strcmp(argv[2], "fat")) path->type = fat;
   else if(!strcmp(argv[2], "sfs")) path->type = sfs;
   else if(!strcmp(argv[2], "ntfs")) path->type = ntfs;
   else if(!strcmp(argv[2], "hfs")) path->type = hfs;

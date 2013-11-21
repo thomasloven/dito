@@ -1,5 +1,6 @@
 #include "fs.h"
 #include "ext2.h"
+#include "fat.h"
 #include <dito.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,8 +11,7 @@ fs_driver_t *supported[] = {
   0, // native
   0, // std
   &ext2_driver,
-  0, // fat16
-  0, // fat 32
+  &fat_driver, // fat
   0, // sfs
   0, // ntfs
   0, // hfs
@@ -210,21 +210,27 @@ INODE fs_find(fs_t *fs, const char *path)
 
 INODE fs_touchp(fs_t *fs, fstat_t *st, const char *path)
 {
+  printf("Touching\n");
   INODE ret = fs_touch(fs, st);
+  printf("Touched\n");
   char *dir = strdup(path);
   char *de = strrchr(dir, '/');
   de[0] = '\0';
+  printf("Finddir\n");
   INODE dir_ino = fs_find(fs, dir);
+  printf("Founddir\n");
   if(!dir_ino)
   {
     free(dir);
     return 0;
   }
+  printf("Linking\n");
   if(fs_link(fs, ret, dir_ino, &de[1]))
   {
     free(dir);
     return 0;
   }
+  printf("Linked\n");
   free(dir);
   return ret;
 }

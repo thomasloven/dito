@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include "fs.h"
 
 typedef struct fat_bpb_st
 {
@@ -19,7 +20,7 @@ typedef struct fat_bpb_st
   uint32_t total_sectors_large;
   union
   {
-    struct fat16
+    struct
     {
       uint8_t drive;
       uint8_t flags;
@@ -29,11 +30,11 @@ typedef struct fat_bpb_st
       uint8_t system_id[8];
       uint8_t unused[448];
       uint8_t boot_signature[2];
-    };
-    struct fat32
+    } fat16;
+    struct
     {
       uint32_t sectors_per_fat;
-      uint16_t flags;
+      uint16_t flags2;
       uint16_t fat_version;
       uint32_t root_cluster;
       uint16_t fsinfo_cluster;
@@ -47,25 +48,25 @@ typedef struct fat_bpb_st
       uint8_t system_id[8];
       uint8_t unused[420];
       uint8_t boot_signature[2];
-    };
-  }
-} fat_bpb_t;
+    } fat32;
+  };
+}__attribute__((packed)) fat_bpb_t;
 
 typedef struct fat_dir_st
 {
   uint8_t name[11];
   uint8_t attrib;
   uint8_t reserved;
-  uint8_t c_sec;
-  uint16_t c_time;
-  uint16_t c_date;
-  uint16_t a_date;
+  uint8_t csec;
+  uint16_t ctime;
+  uint16_t cdate;
+  uint16_t adate;
   uint16_t cluster_high;
-  uint16_t m_time;
-  uint16_t m_date;
+  uint16_t mtime;
+  uint16_t mdate;
   uint16_t cluster_low;
   uint32_t size;
-} fat_dir_t;
+}__attribute__((packed)) fat_dir_t;
 
 #define FAT_DIR_READ_ONLY 0x01
 #define FAT_DIR_HIDDEN 0x02
@@ -74,6 +75,8 @@ typedef struct fat_dir_st
 #define FAT_DIR_DIRECTORY 0x10
 #define FAT_DIR_ARCHIVE 0x20
 #define FAT_DIR_LONGNAME 0x0F
+
+#define FAT_END 0xFF8
 
 typedef struct fat_longname_st
 {
@@ -85,16 +88,57 @@ typedef struct fat_longname_st
   uint8_t name2[12];
   uint16_t zero;
   uint8_t name3[4];
-} fat_longname_t;
+}__attribute__((packed)) fat_longname_t;
+
+typedef struct fat_inode_st
+{
+  struct fat_inode_st *next;
+  INODE parent;
+  uint8_t type;
+  uint32_t cluster;
+  uint32_t size;
+  uint32_t atime;
+  uint32_t ctime;
+  uint32_t mtime;
+} fat_inode_t;
 
 typedef struct
 {
   fat_bpb_t *bpb;
+  uint8_t *fat;
+  fat_inode_t *inodes;
+  fat_inode_t *last;
+  INODE next;
 } fat_data_t;
 
-#define fat_data(fs) ((fat_data->t *)(fs)->data)
+#define fat_data(fs) ((fat_data_t *)(fs)->data)
 #define fat_bpb(fs) ((fat_data((fs)))->bpb)
-#define fat_root_sectors(fs) (((fat_bpb(fs)->root_count * 32) + (fat_bpb(fs)->bytes_per_sector - 1)) / fat_bpb(fs)->bytes_per_sector)
-#define fat_first_data_sector(fs) (fat_bpb(fs)->reserved_sectors + (fat_bpb(fs)->fat_count * fat_bpb(fs)->sectors_per_fat))
+#define fat_root_sectors(fs) (((fat_bpb(fs)->root_count * 32) + (fat_bpb(fs)->bytes_per_sector - 1)) \
+  / fat_bpb(fs)->bytes_per_sector)
+#define fat_first_data_sector(fs) (fat_bpb(fs)->reserved_sectors \
+  + (fat_bpb(fs)->fat_count * fat_bpb(fs)->sectors_per_fat))
 #define fat_fat_start(fs) (fat_bpb(fs)->reserved_sectors)
-#define fat_num_sectors(fs) (fat_bpb(fs)) // UNFINISHED
+#define fat_num_sectors(fs) ((fat_bpb(fs)->total_sectors_small + fat_bpb(fs)->total_sectors_large) \
+  - fat_bpb(fs)->reserved_sectors \
+  - (fat_bpb(fs)->fat_count * fat_bpb(fs)->sectors_per_fat) \
+  - fat_root_sectors(fs))
+#define fat_num_clusters(fs) (fat_num_sectors(fs) / fat_bpb(fs)->sectors_per_cluster)
+#define fat_clustersize(fs) (fat_bpb(fs)->bytes_per_sector*fat_bpb(fs)->sectors_per_cluster)
+
+#define fat_type(fs, a, b, c) (if(fat_bits(fs)==12)(a);else if(fat_bits(fs)==16)(b); else(c);)
+
+fs_driver_t fat_driver;
+
+int fat_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset);
+int fat_write(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset);
+INODE fat_touch(struct fs_st *fs, fstat_t *st);
+dirent_t *fat_readdir(struct fs_st *fs, INODE dir, unsigned int num);
+int fat_link(struct fs_st *fs, INODE ino, INODE dir, const char *name);
+int fat_unlink(struct fs_st *fs, INODE dir, unsigned int num);
+fstat_t *fat_fstat(struct fs_st *fs, INODE ino);
+int fat_mkdir(struct fs_st *fs, INODE parent, const char *name);
+int fat_rmdir(struct fs_st *fs, INODE dir, unsigned int num);
+void *fat_hook_load(struct fs_st *fs);
+void *fat_hook_create(struct fs_st *fs);
+void fat_hook_close(struct fs_st *fs);
+int fat_hook_check(struct fs_st *fs);

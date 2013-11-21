@@ -70,8 +70,7 @@ path_t *parse_path(const char *input)
   while(str[i] != ':') i++;
   str[i] = '\0';
   if(!strcmp(s, "ext2")) path->type = ext2;
-  else if(!strcmp(s, "fat16")) path->type = fat16;
-  else if(!strcmp(s, "fat32")) path->type = fat32;
+  else if(!strcmp(s, "fat")) path->type = fat;
   else if(!strcmp(s, "sfs")) path->type = sfs;
   else if(!strcmp(s, "ntfs")) path->type = ntfs;
   else if(!strcmp(s, "hfs")) path->type = hfs;

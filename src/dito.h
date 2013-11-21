@@ -54,8 +54,7 @@ typedef enum fs_type_e {
   native,
   std,
   ext2,
-  fat16,
-  fat32,
+  fat,
   sfs,
   ntfs,
   hfs
