@@ -76,6 +76,8 @@ typedef struct fat_dir_st
 #define FAT_DIR_ARCHIVE 0x20
 #define FAT_DIR_LONGNAME 0x0F
 
+#define FAT_END 0xFF8
+
 typedef struct fat_longname_st
 {
   uint8_t num;
@@ -140,14 +142,3 @@ void *fat_hook_load(struct fs_st *fs);
 void *fat_hook_create(struct fs_st *fs);
 void fat_hook_close(struct fs_st *fs);
 int fat_hook_check(struct fs_st *fs);
-
-
-int fat_bits(struct fs_st *fs);
-uint32_t fat_read_fat(struct fs_st *fs, uint32_t cluster);
-void fat_write_fat(struct fs_st *fs, uint32_t cluster, uint32_t set);
-fat_inode_t *fat_get_inode(struct fs_st *fs, INODE ino);
-uint32_t *fat_get_clusters(struct fs_st *fs, INODE ino);
-char *fat_make_shortname(const char *longname);
-
-void *fat_write_longname(void *de, const char *name);
-char *fat_read_longname(void *de);
