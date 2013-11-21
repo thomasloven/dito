@@ -21,8 +21,8 @@ argument(s). The paths are given in the following format:
 
 	filesystem:imagefile:partition:path
 
-`filesystem` is the filesystem in use. This far, `ext2` is the only
-implemented option.
+`filesystem` is the filesystem in use. This far, `ext2` and `fat` are the only
+implemented options (only FAT12).
 `imagefile` is the path to your disk image file.
 `partition` is the partition number you want. 1-4.
 `path` is the path to the file from the root of the filesystem.
