@@ -162,7 +162,7 @@ void *ext2_hook_create(struct fs_st *fs);
 void ext2_hook_close(struct fs_st *fs);
 int ext2_hook_check(struct fs_st *fs);
 
-fs_driver_t ext2_driver;
+extern fs_driver_t ext2_driver;
 uint32_t *ext2_get_blocks(fs_t *fs, ext2_inode_t *node, uint32_t *indirects);
 int ext2_read_inode(struct fs_st *fs, ext2_inode_t *buffer, int num);
 int ext2_readblocks(struct fs_st *fs, void *buffer, size_t start, size_t len);

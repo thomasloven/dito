@@ -11,9 +11,9 @@
 
 typedef struct
 {
-  int C;
-  int H;
-  int S;
+  uint32_t C;
+  uint32_t H;
+  uint32_t S;
 } CHS_t;
 
 

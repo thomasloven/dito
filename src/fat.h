@@ -127,7 +127,7 @@ typedef struct
 
 #define fat_type(fs, a, b, c) (if(fat_bits(fs)==12)(a);else if(fat_bits(fs)==16)(b); else(c);)
 
-fs_driver_t fat_driver;
+extern fs_driver_t fat_driver;
 
 int fat_read(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset);
 int fat_write(struct fs_st *fs, INODE ino, void *buffer, size_t length, size_t offset);

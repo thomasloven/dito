@@ -20,9 +20,9 @@ typedef struct
 {
   char *filename;
   FILE *file;
-  size_t cylinders;
-  size_t heads;
-  size_t sectors;
+  uint32_t cylinders;
+  uint32_t heads;
+  uint32_t sectors;
   MBR_entry_t mbr[4];
   int mbr_dirty;
 

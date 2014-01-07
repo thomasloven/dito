@@ -59,7 +59,7 @@ int main(int argc, const char *argv[])
     goto end;
   }
 
-  printf(" Image file created with CHS: %ld %ld %ld\n", im->cylinders, im->heads, im->sectors);
+  printf(" Image file created with CHS: %d %d %d\n", im->cylinders, im->heads, im->sectors);
 
 end:
   if(im)

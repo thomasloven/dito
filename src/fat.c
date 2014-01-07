@@ -582,37 +582,63 @@ dirent_t *fat_readdir(struct fs_st *fs, INODE dir, unsigned int num)
     inode->cluster = (de->cluster_high << 16) + de->cluster_low;
     inode->size = de->size;
     // Parse times
-    struct tm atime = 
-    {
-      0, 0, 0, //sec, min, hour
-      (de->adate & 0x1F), // day
-      ((de->adate >> 5) & 0xF), // month
-      ((de->adate >> 9) & 0x7F), // year
-      0,0,0,0,0
-    };
-    struct tm ctime = 
-    {
-      (de->ctime & 0x1F), // sec
-      ((de->ctime >> 5) & 0x3F), // min
-      ((de->ctime >> 11) & 0x1F), // hour
-      (de->cdate & 0x1F), // day
-      ((de->cdate >> 5) & 0xF), // month
-      ((de->cdate >> 9) & 0x7F), // year
-      0,0,0,0,0
-    };
-    struct tm mtime = 
-    {
-      (de->mtime & 0x1F), // sec
-      ((de->mtime >> 5) & 0x3F), // min
-      ((de->mtime >> 11) & 0x1F), // hour
-      (de->mdate & 0x1F), // day
-      ((de->mdate >> 5) & 0xF), // month
-      ((de->mdate >> 9) & 0x7F), // year
-      0,0,0,0,0
-    };
-    inode->atime = mktime(&atime);
-    inode->ctime = mktime(&ctime);
-    inode->mtime = mktime(&mtime);
+    struct tm *atime = calloc(1, sizeof(struct tm));
+    atime->tm_mday = (de->adate & 0x1F);
+    atime->tm_mon = ((de->adate >> 5) & 0xF);
+    atime->tm_year = ((de->adate >> 9) & 0x7F);
+
+    /* struct tm atime = */ 
+    /* { */
+    /*   0, 0, 0, //sec, min, hour */
+    /*   (de->adate & 0x1F), // day */
+    /*   ((de->adate >> 5) & 0xF), // month */
+    /*   ((de->adate >> 9) & 0x7F), // year */
+    /*   0,0,0,0,0 */
+    /* }; */
+
+    struct tm *ctime = calloc(1, sizeof(struct tm));
+    ctime->tm_sec = (de->ctime & 0x1F);
+    ctime->tm_min = ((de->ctime >> 5) & 0x3F);
+    ctime->tm_hour = ((de->ctime >> 11) & 0x1F);
+    ctime->tm_mday = (de->cdate & 0x1F);
+    ctime->tm_mon = ((de->cdate >> 5) & 0xF);
+    ctime->tm_year = ((de->cdate >> 9) & 0x7F);
+
+    /* struct tm ctime = */ 
+    /* { */
+    /*   (de->ctime & 0x1F), // sec */
+    /*   ((de->ctime >> 5) & 0x3F), // min */
+    /*   ((de->ctime >> 11) & 0x1F), // hour */
+    /*   (de->cdate & 0x1F), // day */
+    /*   ((de->cdate >> 5) & 0xF), // month */
+    /*   ((de->cdate >> 9) & 0x7F), // year */
+    /*   0,0,0,0,0 */
+    /* }; */
+
+    struct tm *mtime = calloc(1, sizeof(struct tm));
+    mtime->tm_sec = (de->mtime & 0x1F);
+    mtime->tm_min = ((de->mtime >> 5) & 0x3F);
+    mtime->tm_hour = ((de->mtime >> 11) & 0x1F);
+    mtime->tm_mday = (de->mdate & 0x1F);
+    mtime->tm_mon = ((de->mdate >> 5) & 0xF);
+    mtime->tm_year = ((de->mdate >> 9) & 0x7F);
+
+    /* struct tm mtime = */ 
+    /* { */
+    /*   (de->mtime & 0x1F), // sec */
+    /*   ((de->mtime >> 5) & 0x3F), // min */
+    /*   ((de->mtime >> 11) & 0x1F), // hour */
+    /*   (de->mdate & 0x1F), // day */
+    /*   ((de->mdate >> 5) & 0xF), // month */
+    /*   ((de->mdate >> 9) & 0x7F), // year */
+    /*   0,0,0,0,0 */
+    /* }; */
+    inode->atime = mktime(atime);
+    inode->ctime = mktime(ctime);
+    inode->mtime = mktime(mtime);
+    free(atime);
+    free(ctime);
+    free(mtime);
 
     // Insert new inode into list
     fat_data(fs)->last->next = inode;

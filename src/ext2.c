@@ -1315,6 +1315,8 @@ void ext2_hook_close(struct fs_st *fs)
 
 int ext2_hook_check(struct fs_st *fs)
 {
+  if(!fs)
+    return 0;
   return 0;
 }
 

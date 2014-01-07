@@ -210,27 +210,21 @@ INODE fs_find(fs_t *fs, const char *path)
 
 INODE fs_touchp(fs_t *fs, fstat_t *st, const char *path)
 {
-  printf("Touching\n");
   INODE ret = fs_touch(fs, st);
-  printf("Touched\n");
   char *dir = strdup(path);
   char *de = strrchr(dir, '/');
   de[0] = '\0';
-  printf("Finddir\n");
   INODE dir_ino = fs_find(fs, dir);
-  printf("Founddir\n");
   if(!dir_ino)
   {
     free(dir);
     return 0;
   }
-  printf("Linking\n");
   if(fs_link(fs, ret, dir_ino, &de[1]))
   {
     free(dir);
     return 0;
   }
-  printf("Linked\n");
   free(dir);
   return ret;
 }

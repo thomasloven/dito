@@ -189,7 +189,7 @@ size_t image_getsize(image_t *im)
   if(!im)
     return 0;
 
-  size_t blocks = im->cylinders*im->heads*im->sectors;
+  uint32_t blocks = im->cylinders*im->heads*im->sectors;
 
   return blocks*BLOCK_SIZE;
 }
