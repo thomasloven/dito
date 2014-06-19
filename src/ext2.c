@@ -98,8 +98,8 @@ int ext2_read_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
   int group = (num-1) / data->superblock->inodes_per_group;
   int offset =(num-1) % data->superblock->inodes_per_group;
 
-  int inoblock = (offset*sizeof(ext2_inode_t))/ext2_blocksize(fs);
-  size_t inooffset = (offset*sizeof(ext2_inode_t))%ext2_blocksize(fs);
+  int inoblock = (offset*data->superblock->inode_size)/ext2_blocksize(fs);
+  size_t inooffset = (offset*data->superblock->inode_size)%ext2_blocksize(fs);
   inoblock += data->groups[group].inode_table;
 
   char *buff = malloc(2*ext2_blocksize(fs));
@@ -125,8 +125,8 @@ int ext2_write_inode(struct fs_st *fs, ext2_inode_t *buffer, int num)
   int group = (num-1) / data->superblock->inodes_per_group;
   int offset = (num-1) % data->superblock->inodes_per_group;
 
-  int inoblock = (offset*sizeof(ext2_inode_t))/ext2_blocksize(fs);
-  size_t inooffset = (offset*sizeof(ext2_inode_t))%ext2_blocksize(fs);
+  int inoblock = (offset*data->superblock->inode_size)/ext2_blocksize(fs);
+  size_t inooffset = (offset*data->superblock->inode_size)%ext2_blocksize(fs);
   inoblock += data->groups[group].inode_table;
 
   char *buff = malloc(2*ext2_blocksize(fs));
